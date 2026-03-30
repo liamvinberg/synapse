@@ -15,5 +15,19 @@ export default defineConfig({
   build: {
     target: 'esnext',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'zustand'],
+          render: [
+            'three',
+            '@react-three/fiber',
+            '@react-three/drei',
+            '@react-three/rapier',
+          ],
+          worldgen: ['simplex-noise'],
+        },
+      },
+    },
   },
 });

@@ -1,16 +1,27 @@
-import type { ReactElement } from 'react';
+import { lazy, Suspense, useEffect, type ReactElement } from 'react';
+import { GameHud } from '@/app/GameHud';
+import { useInputBridge } from '@/game/input/useInputBridge';
+import { gameRuntime } from '@/game/runtime/GameRuntime';
+
+const GameViewport = lazy(async () => import('@/game/render/GameViewport').then((module) => ({ default: module.GameViewport })));
 
 export function App(): ReactElement {
+  useInputBridge();
+
+  useEffect(() => {
+    gameRuntime.start();
+
+    return () => {
+      gameRuntime.stop();
+    };
+  }, []);
+
   return (
     <main className="app-shell">
-      <section className="hero-card">
-        <p className="eyebrow">Synapse</p>
-        <h1>Performance-first space game foundation</h1>
-        <p className="copy">
-          The project shell is in place. The next layer adds the simulation,
-          rendering, and world-generation boundaries that the game will grow on.
-        </p>
-      </section>
+      <Suspense fallback={<div className="viewport-fallback" />}>
+        <GameViewport />
+      </Suspense>
+      <GameHud />
     </main>
   );
 }
