@@ -1,0 +1,63 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #040713;
+  color: #f3f6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(63, 109, 255, 0.18), transparent 40%),
+    linear-gradient(180deg, #06101f 0%, #040713 100%);
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+}
+
+.hero-card {
+  width: min(680px, 100%);
+  padding: 32px;
+  border: 1px solid rgba(140, 167, 255, 0.2);
+  border-radius: 24px;
+  background: rgba(8, 15, 32, 0.78);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.4);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #95aafc;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hero-card h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  line-height: 1.05;
+}
+
+.copy {
+  margin: 16px 0 0;
+  max-width: 48ch;
+  color: #c9d4f4;
+  font-size: 1rem;
+  line-height: 1.7;
+}
