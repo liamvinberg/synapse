@@ -31,3 +31,8 @@ src/
 - `pnpm build` — typecheck and create a production build
 - `pnpm typecheck` — run strict TypeScript checks
 - `pnpm test` — run Vitest
+
+## Project notes
+
+- [`docs/game-direction.md`](./docs/game-direction.md) — current controller,
+  combat, and game-feel direction
