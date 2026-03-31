@@ -3,11 +3,13 @@ import { createInitialSnapshot } from '@/game/sim/createInitialSnapshot';
 import type { GameSnapshot, InputState } from '@/game/sim/types';
 
 const initialInputState: InputState = {
+  aim: { x: 0, y: 0 },
   boost: false,
+  brake: false,
+  strafeLeft: false,
+  strafeRight: false,
   thrustBackward: false,
   thrustForward: false,
-  yawLeft: false,
-  yawRight: false,
 };
 
 export interface GameStore {

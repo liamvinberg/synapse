@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useGameStore } from '@/game/state/gameStore';
 
 interface InterpolatedShipState {
+  bankRadians: number;
+  pitchRadians: number;
   position: {
     x: number;
     y: number;
@@ -20,6 +22,8 @@ export function useInterpolatedShipState(): InterpolatedShipState {
       previous + (current - previous) * frameAlpha;
 
     return {
+      bankRadians: interpolate(previousShip.bankRadians, currentShip.bankRadians),
+      pitchRadians: interpolate(previousShip.pitchRadians, currentShip.pitchRadians),
       position: {
         x: interpolate(previousShip.position.x, currentShip.position.x),
         y: interpolate(previousShip.position.y, currentShip.position.y),

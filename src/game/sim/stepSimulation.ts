@@ -1,45 +1,48 @@
-import { addVec3, normalizeYawVector, scaleVec3 } from '@/game/sim/math';
 import type {
   GameSnapshot,
   InputState,
   SectorCoordinate,
-  ShipState,
+  ShipResources,
   Vec3,
 } from '@/game/sim/types';
+import { actionChaseControllerProfile } from '@/game/sim/controller/controllerProfile';
+import { stepShipController } from '@/game/sim/controller/stepShipController';
 import { generateSectorDescriptor } from '@/game/worldgen/galaxy';
 
-const BASE_THRUST = 18;
-const BOOST_MULTIPLIER = 2.4;
-const LINEAR_DAMPING = 0.96;
 const SECTOR_SPAN = 2400;
-const TURN_SPEED = 1.6;
 
-function applyLinearDamping(velocity: Vec3, deltaSeconds: number): Vec3 {
-  const dampingFactor = Math.pow(LINEAR_DAMPING, deltaSeconds * 60);
-  return scaleVec3(velocity, dampingFactor);
-}
-
-function updateShipState(
-  ship: ShipState,
+function stepShipResources(
+  resources: ShipResources,
   input: InputState,
   deltaSeconds: number,
-): ShipState {
-  const yawDirection = Number(input.yawLeft) - Number(input.yawRight);
-  const thrustDirection = Number(input.thrustForward) - Number(input.thrustBackward);
-  const yawRadians = ship.yawRadians + yawDirection * TURN_SPEED * deltaSeconds;
-  const forwardVector = normalizeYawVector(yawRadians);
-  const thrustMultiplier = input.boost ? BOOST_MULTIPLIER : 1;
-  const acceleration = scaleVec3(
-    forwardVector,
-    thrustDirection * BASE_THRUST * thrustMultiplier * deltaSeconds,
+): ShipResources {
+  const nextShieldRegenTimeoutSeconds = Math.max(
+    0,
+    resources.shieldRegenTimeoutSeconds - deltaSeconds,
   );
-  const velocity = applyLinearDamping(addVec3(ship.velocity, acceleration), deltaSeconds);
+  const nextShield =
+    nextShieldRegenTimeoutSeconds > 0
+      ? resources.shield
+      : Math.min(
+          resources.shieldMax,
+          resources.shield + resources.shieldRegenRate * deltaSeconds,
+        );
+  const boostDrain = input.boost
+    ? actionChaseControllerProfile.boostDrainPerSecond * deltaSeconds
+    : 0;
+  const boostRecharge = input.boost
+    ? 0
+    : actionChaseControllerProfile.boostRechargePerSecond * deltaSeconds;
 
   return {
-    ...ship,
-    yawRadians,
-    velocity,
-    position: addVec3(ship.position, scaleVec3(velocity, deltaSeconds)),
+    ...resources,
+    boostEnergy: Math.max(
+      0,
+      Math.min(resources.boostEnergyMax, resources.boostEnergy - boostDrain + boostRecharge),
+    ),
+    shield: nextShield,
+    shieldRegenTimeoutSeconds: nextShieldRegenTimeoutSeconds,
+    stagger: Math.max(0, resources.stagger - resources.staggerRecoveryPerSecond * deltaSeconds),
   };
 }
 
@@ -76,6 +79,18 @@ function wrapPositionToSector(
     didWrap = true;
   }
 
+  while (nextPosition.y > halfSector) {
+    nextPosition.y -= SECTOR_SPAN;
+    nextSector.y += 1;
+    didWrap = true;
+  }
+
+  while (nextPosition.y < -halfSector) {
+    nextPosition.y += SECTOR_SPAN;
+    nextSector.y -= 1;
+    didWrap = true;
+  }
+
   return { position: nextPosition, sector: nextSector, didWrap };
 }
 
@@ -84,7 +99,12 @@ export function stepSimulation(
   input: InputState,
   deltaSeconds: number,
 ): GameSnapshot {
-  const nextShip = updateShipState(snapshot.ship, input, deltaSeconds);
+  const nextShip = stepShipController(snapshot.ship, input, deltaSeconds);
+  const nextShipResources = stepShipResources(
+    snapshot.ship.resources,
+    input,
+    deltaSeconds,
+  );
   const wrapped = wrapPositionToSector(nextShip.position, snapshot.activeSector);
   const activeSectorDescriptor = wrapped.didWrap
     ? generateSectorDescriptor(snapshot.universeSeed, wrapped.sector)
@@ -98,6 +118,7 @@ export function stepSimulation(
     ship: {
       ...nextShip,
       position: wrapped.position,
+      resources: nextShipResources,
     },
   };
 }
