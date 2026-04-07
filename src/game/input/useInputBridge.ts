@@ -31,8 +31,7 @@ function getInputPatch() {
 export function useInputBridge(): void {
   useEffect(() => {
     const setInputPatch = useGameStore.getState().setInputPatch;
-    const cycleMapLayer = useGameStore.getState().cycleMapLayer;
-    const setMapLayer = useGameStore.getState().setMapLayer;
+    const setGalaxyMapOpen = useGameStore.getState().setGalaxyMapOpen;
     const readInput = useGameStore.getState;
 
     const applyKeyState = (code: string, isPressed: boolean) => {
@@ -48,12 +47,16 @@ export function useInputBridge(): void {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code === 'KeyM') {
         event.preventDefault();
-        cycleMapLayer();
+        setGalaxyMapOpen(!readInput().galaxyMapOpen);
         return;
       }
 
       if (event.code === 'Escape') {
-        setMapLayer('none');
+        setGalaxyMapOpen(false);
+        return;
+      }
+
+      if (readInput().galaxyMapOpen && event.code !== 'KeyH') {
         return;
       }
 
@@ -61,6 +64,10 @@ export function useInputBridge(): void {
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
+      if (readInput().galaxyMapOpen && event.code !== 'KeyH') {
+        return;
+      }
+
       applyKeyState(event.code, false);
     };
 
@@ -83,6 +90,10 @@ export function useInputBridge(): void {
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      if (readInput().galaxyMapOpen) {
+        return;
+      }
+
       if (document.pointerLockElement === null) {
         void document.body.requestPointerLock();
         return;

@@ -45,3 +45,37 @@ export function generateNearbySystems(
 
   return systems.sort((left, right) => left.distance - right.distance || left.label.localeCompare(right.label));
 }
+
+export function generateGalaxyWindow(
+  universeSeed: string,
+  center: SectorCoordinate,
+  radius: number,
+): SystemSummary[] {
+  const systems: SystemSummary[] = [];
+
+  for (let z = -radius; z <= radius; z += 1) {
+    for (let x = -radius; x <= radius; x += 1) {
+      const coordinate = {
+        x: center.x + x,
+        y: center.y,
+        z: center.z + z,
+      };
+      const descriptor = generateSectorDescriptor(universeSeed, coordinate);
+      const random = createSeededRandom(hashSectorCoordinate(universeSeed, coordinate) ^ 0x85ebca6b);
+      const shouldExist = random() < descriptor.density * 0.92;
+
+      if (!shouldExist) {
+        continue;
+      }
+
+      systems.push({
+        coordinate,
+        descriptor,
+        distance: Math.hypot(coordinate.x - center.x, coordinate.z - center.z),
+        label: getSystemLabel(universeSeed, coordinate),
+      });
+    }
+  }
+
+  return systems.sort((left, right) => left.distance - right.distance || left.label.localeCompare(right.label));
+}

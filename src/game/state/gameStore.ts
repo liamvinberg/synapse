@@ -15,40 +15,27 @@ const initialInputState: InputState = {
   thrustForward: false,
 };
 
-export type MapLayer = 'none' | 'local' | 'system';
-
 export interface GameStore {
+  galaxyMapOpen: boolean;
   frameAlpha: number;
   input: InputState;
   isRuntimeRunning: boolean;
-  mapLayer: MapLayer;
   previousSnapshot: GameSnapshot;
   selectTravelTarget: (targetSystem: SectorCoordinate | null) => void;
-  setMapLayer: (mapLayer: MapLayer) => void;
+  setGalaxyMapOpen: (open: boolean) => void;
   setFrameAlpha: (frameAlpha: number) => void;
   setInputPatch: (patch: Partial<InputState>) => void;
   setSnapshot: (snapshot: GameSnapshot) => void;
   snapshot: GameSnapshot;
-  cycleMapLayer: () => void;
 }
 
 const initialSnapshot = createInitialSnapshot('synapse-foundation');
 
 export const useGameStore = create<GameStore>((set) => ({
-  cycleMapLayer: () => {
-    set((state) => ({
-      mapLayer:
-        state.mapLayer === 'none'
-          ? 'local'
-          : state.mapLayer === 'local'
-            ? 'system'
-            : 'none',
-    }));
-  },
+  galaxyMapOpen: false,
   frameAlpha: 0,
   input: initialInputState,
   isRuntimeRunning: false,
-  mapLayer: 'none',
   previousSnapshot: initialSnapshot,
   selectTravelTarget: (targetSystem) => {
     set((state) => ({
@@ -63,8 +50,8 @@ export const useGameStore = create<GameStore>((set) => ({
       },
     }));
   },
-  setMapLayer: (mapLayer) => {
-    set({ mapLayer });
+  setGalaxyMapOpen: (open) => {
+    set({ galaxyMapOpen: open });
   },
   setFrameAlpha: (frameAlpha) => {
     set({ frameAlpha });
