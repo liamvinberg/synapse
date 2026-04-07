@@ -9,8 +9,11 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
     elapsedSeconds: 0,
     activeSector,
     activeSectorDescriptor: generateSectorDescriptor(universeSeed, activeSector),
+    nextProjectileId: 0,
+    projectiles: [],
     ship: {
       bankRadians: 0,
+      collisionCooldownSeconds: 0,
       controlMode: 'action-chase',
       pitchRadians: 0,
       position: { x: 0, y: 0, z: 220 },
@@ -29,6 +32,7 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
         staggerRecoveryPerSecond: 18,
       },
       velocity: { x: 0, y: 0, z: 0 },
+      weaponCooldownSeconds: 0,
       yawRadians: Math.PI,
     },
   };

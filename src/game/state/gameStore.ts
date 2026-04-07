@@ -6,6 +6,7 @@ const initialInputState: InputState = {
   aim: { x: 0, y: 0 },
   boost: false,
   brake: false,
+  fire: false,
   strafeLeft: false,
   strafeRight: false,
   thrustBackward: false,

@@ -32,12 +32,23 @@ export interface SectorDescriptor {
 
 export interface ShipState {
   bankRadians: number;
+  collisionCooldownSeconds: number;
   controlMode: 'action-chase';
   pitchRadians: number;
   position: Vec3;
   resources: ShipResources;
   velocity: Vec3;
+  weaponCooldownSeconds: number;
   yawRadians: number;
+}
+
+export interface ProjectileState {
+  damage: DamagePacket;
+  id: string;
+  position: Vec3;
+  radius: number;
+  ttlSeconds: number;
+  velocity: Vec3;
 }
 
 export interface ShipResources {
@@ -59,6 +70,8 @@ export interface GameSnapshot {
   activeSector: SectorCoordinate;
   activeSectorDescriptor: SectorDescriptor;
   elapsedSeconds: number;
+  nextProjectileId: number;
+  projectiles: ProjectileState[];
   ship: ShipState;
   universeSeed: string;
 }
@@ -67,6 +80,7 @@ export interface InputState {
   aim: Vec2;
   boost: boolean;
   brake: boolean;
+  fire: boolean;
   strafeLeft: boolean;
   strafeRight: boolean;
   thrustBackward: boolean;

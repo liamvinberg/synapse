@@ -3,8 +3,8 @@ import { mouseLookTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
 
 const keyBindings: Record<string, keyof ReturnType<typeof getInputPatch>> = {
-  KeyA: 'strafeRight',
-  KeyD: 'strafeLeft',
+  KeyA: 'strafeLeft',
+  KeyD: 'strafeRight',
   KeyS: 'thrustBackward',
   KeyW: 'thrustForward',
   Space: 'brake',
@@ -21,6 +21,7 @@ function getInputPatch() {
     strafeRight: false,
     brake: false,
     boost: false,
+    fire: false,
   };
 }
 
@@ -68,32 +69,47 @@ export function useInputBridge(): void {
     const onPointerDown = () => {
       if (document.pointerLockElement === null) {
         void document.body.requestPointerLock();
+        return;
       }
+
+      setInputPatch({ fire: true });
+    };
+
+    const onPointerUp = () => {
+      setInputPatch({ fire: false });
     };
 
     const onPointerLockChange = () => {
       if (document.pointerLockElement === null) {
-        setInputPatch({ aim: { x: 0, y: 0 } });
+        setInputPatch({ aim: { x: 0, y: 0 }, fire: false });
       }
     };
 
     const onWindowBlur = () => {
-      setInputPatch({ aim: { x: 0, y: 0 } });
+      setInputPatch({ aim: { x: 0, y: 0 }, fire: false });
+    };
+
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('pointerlockchange', onPointerLockChange);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('contextmenu', onContextMenu);
       document.removeEventListener('pointerlockchange', onPointerLockChange);
     };
   }, []);
