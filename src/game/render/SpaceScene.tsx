@@ -23,6 +23,24 @@ function PlanetBodies(): ReactElement {
   );
 }
 
+function ProjectileBodies(): ReactElement {
+  const projectiles = useGameStore((state) => state.snapshot.projectiles);
+
+  return (
+    <>
+      {projectiles.map((projectile) => (
+        <mesh
+          key={projectile.id}
+          position={[projectile.position.x, projectile.position.y, projectile.position.z]}
+        >
+          <sphereGeometry args={[projectile.radius, 12, 12]} />
+          <meshBasicMaterial color="#b8d7ff" />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
 function LocalSystem(): ReactElement {
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
   const shipState = useInterpolatedShipState();
@@ -40,6 +58,7 @@ function LocalSystem(): ReactElement {
         <meshBasicMaterial color={starColor} />
       </mesh>
       <PlanetBodies />
+      <ProjectileBodies />
     </group>
   );
 }

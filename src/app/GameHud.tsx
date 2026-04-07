@@ -8,6 +8,7 @@ function formatSector(x: number, y: number, z: number): string {
 export function GameHud(): ReactElement {
   const elapsedSeconds = useGameStore((state) => state.snapshot.elapsedSeconds);
   const activeSector = useGameStore((state) => state.snapshot.activeSector);
+  const projectileCount = useGameStore((state) => state.snapshot.projectiles.length);
   const shipResources = useGameStore((state) => state.snapshot.ship.resources);
   const shipVelocity = useGameStore((state) => state.snapshot.ship.velocity);
 
@@ -26,6 +27,7 @@ export function GameHud(): ReactElement {
           <div className="debug-line">
             boost {shipResources.boostEnergy.toFixed(0)} / {shipResources.boostEnergyMax.toFixed(0)}
           </div>
+          <div className="debug-line">shots {projectileCount}</div>
         </div>
       </section>
       <div className="reticle" aria-hidden="true" />
