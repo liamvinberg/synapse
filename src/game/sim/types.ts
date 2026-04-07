@@ -51,6 +51,15 @@ export interface ProjectileState {
   velocity: Vec3;
 }
 
+export interface ImpactState {
+  color: string;
+  id: string;
+  maxTtlSeconds: number;
+  position: Vec3;
+  radius: number;
+  ttlSeconds: number;
+}
+
 export interface ShipResources {
   boostEnergy: number;
   boostEnergyMax: number;
@@ -70,6 +79,8 @@ export interface GameSnapshot {
   activeSector: SectorCoordinate;
   activeSectorDescriptor: SectorDescriptor;
   elapsedSeconds: number;
+  impacts: ImpactState[];
+  nextImpactId: number;
   nextProjectileId: number;
   projectiles: ProjectileState[];
   ship: ShipState;

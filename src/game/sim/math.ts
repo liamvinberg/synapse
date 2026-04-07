@@ -28,6 +28,10 @@ export function lengthVec3(vector: Vec3): number {
   return Math.hypot(vector.x, vector.y, vector.z);
 }
 
+export function dotVec3(left: Vec3, right: Vec3): number {
+  return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
 export function normalizeVec3(vector: Vec3): Vec3 {
   const length = lengthVec3(vector);
 

@@ -9,6 +9,8 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
     elapsedSeconds: 0,
     activeSector,
     activeSectorDescriptor: generateSectorDescriptor(universeSeed, activeSector),
+    impacts: [],
+    nextImpactId: 0,
     nextProjectileId: 0,
     projectiles: [],
     ship: {

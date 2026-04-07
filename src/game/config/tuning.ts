@@ -36,6 +36,10 @@ export const combatTuning = {
   collisionDamageStagger: 22,
   collisionDamageStep: 0.45,
   fireCooldownSeconds: 0.14,
+  impactColor: '#7ec8ff',
+  impactRadius: 1.15,
+  impactTtlSeconds: 0.12,
+  maxAimDistance: 1400,
   projectileDamage: {
     amount: 18,
     shieldMultiplier: 0.9,
