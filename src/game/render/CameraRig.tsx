@@ -1,18 +1,9 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import type { ReactElement } from 'react';
-import { chaseCameraTuning, motionFeedbackTuning } from '@/game/config/tuning';
+import { motionFeedbackTuning } from '@/game/config/tuning';
+import { getChaseCameraPose } from '@/game/shared/chaseCamera';
 import { useGameStore } from '@/game/state/gameStore';
 import { useInterpolatedShipState } from '@/game/render/useInterpolatedShipState';
-
-function getForwardVector(yawRadians: number, pitchRadians: number) {
-  const cosPitch = Math.cos(pitchRadians);
-
-  return {
-    x: Math.sin(yawRadians) * cosPitch,
-    y: -Math.sin(pitchRadians),
-    z: Math.cos(yawRadians) * cosPitch,
-  };
-}
 
 export function CameraRig(): ReactElement | null {
   const camera = useThree((state) => state.camera);
@@ -22,23 +13,16 @@ export function CameraRig(): ReactElement | null {
 
   useFrame((_, deltaSeconds) => {
     const speed = Math.hypot(shipVelocity.x, shipVelocity.y, shipVelocity.z);
-    const forward = getForwardVector(shipState.yawRadians, shipState.pitchRadians);
-    const distance =
-      chaseCameraTuning.distanceBase +
-      Math.min(speed * chaseCameraTuning.distanceSpeedScale, chaseCameraTuning.distanceSpeedMax);
-    const chaseHeight = chaseCameraTuning.height;
-    const targetX = -forward.x * distance;
-    const targetY = chaseHeight - forward.y * chaseCameraTuning.pitchLift;
-    const targetZ = -forward.z * distance;
-    const easing = 1 - Math.exp(-deltaSeconds * chaseCameraTuning.followSharpness);
+    const cameraPose = getChaseCameraPose(shipState, speed);
+    const easing = 1 - Math.exp(-deltaSeconds * 10);
 
-    camera.position.x += (targetX - camera.position.x) * easing;
-    camera.position.y += (targetY - camera.position.y) * easing;
-    camera.position.z += (targetZ - camera.position.z) * easing;
+    camera.position.x += (cameraPose.position.x - camera.position.x) * easing;
+    camera.position.y += (cameraPose.position.y - camera.position.y) * easing;
+    camera.position.z += (cameraPose.position.z - camera.position.z) * easing;
     camera.lookAt(
-      forward.x * chaseCameraTuning.lookAheadDistance,
-      chaseCameraTuning.lookAheadHeight + forward.y * chaseCameraTuning.lookAheadDistance,
-      forward.z * chaseCameraTuning.lookAheadDistance,
+      cameraPose.lookTarget.x,
+      cameraPose.lookTarget.y,
+      cameraPose.lookTarget.z,
     );
 
     const speedRatio = Math.min(1, speed / motionFeedbackTuning.speedForMaxFov);
