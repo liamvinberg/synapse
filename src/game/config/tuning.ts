@@ -27,3 +27,23 @@ export const motionFeedbackTuning = {
   maxFovBoost: 9,
   speedForMaxFov: 42,
 } as const;
+
+export const combatTuning = {
+  collisionBounceSpeed: 8,
+  collisionCooldownSeconds: 0.45,
+  collisionDamageShieldMultiplier: 1.4,
+  collisionDamageSpeedThreshold: 18,
+  collisionDamageStagger: 22,
+  collisionDamageStep: 0.45,
+  fireCooldownSeconds: 0.14,
+  projectileDamage: {
+    amount: 18,
+    shieldMultiplier: 0.9,
+    stagger: 16,
+  },
+  projectileRadius: 0.24,
+  projectileSpawnOffset: 1.6,
+  projectileSpeed: 120,
+  projectileTtlSeconds: 1.8,
+  shipCollisionRadius: 1.1,
+} as const;
