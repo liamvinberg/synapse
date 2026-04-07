@@ -238,7 +238,7 @@ function createProjectile(
     position: muzzlePosition,
     radius: combatTuning.projectileRadius,
     ttlSeconds: combatTuning.projectileTtlSeconds,
-    velocity: addVec3(ship.velocity, scaleVec3(aimDirection, combatTuning.projectileSpeed)),
+    velocity: scaleVec3(aimDirection, combatTuning.projectileSpeed),
   };
 }
 

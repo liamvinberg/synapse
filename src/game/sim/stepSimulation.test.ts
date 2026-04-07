@@ -155,4 +155,40 @@ describe('stepSimulation combat and collision', () => {
     expect(nextSnapshot.projectiles).toHaveLength(1);
     expect(nextSnapshot.projectiles[0].velocity.y).toBeLessThan(0);
   });
+
+  it('does not bend projectile travel with inherited ship strafe velocity', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const movingSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        pitchRadians: 0,
+        position: { x: 0, y: 0, z: 220 },
+        velocity: { x: 25, y: 0, z: 0 },
+        yawRadians: Math.PI,
+      },
+    };
+
+    const nextSnapshot = stepSimulation(
+      movingSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        boost: false,
+        brake: false,
+        fire: true,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    expect(nextSnapshot.projectiles).toHaveLength(1);
+    expect(Math.hypot(
+      nextSnapshot.projectiles[0].velocity.x,
+      nextSnapshot.projectiles[0].velocity.y,
+      nextSnapshot.projectiles[0].velocity.z,
+    )).toBeCloseTo(combatTuning.projectileSpeed, 4);
+  });
 });
