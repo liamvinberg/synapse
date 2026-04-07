@@ -1,8 +1,50 @@
+/* ──────────────────────────────────────────────────
+   Void Minimal — Design System
+   ────────────────────────────────────────────────── */
+
 :root {
   color-scheme: dark;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #040713;
-  color: #f3f6ff;
+
+  --v-deep: #030610;
+  --v-base: #060b16;
+  --v-surface: #0a1020;
+  --v-elevated: #0e152a;
+
+  --v-border: rgba(140, 160, 200, 0.07);
+  --v-border-active: rgba(140, 160, 200, 0.16);
+
+  --v-text: rgba(200, 210, 230, 0.88);
+  --v-text-dim: rgba(160, 175, 200, 0.48);
+  --v-text-ghost: rgba(130, 148, 180, 0.24);
+
+  --v-hull: rgba(200, 215, 235, 0.65);
+  --v-shield: rgba(120, 170, 230, 0.65);
+  --v-boost: rgba(200, 180, 140, 0.65);
+
+  --v-current-bg: rgba(200, 185, 140, 0.08);
+  --v-current-border: rgba(200, 185, 140, 0.18);
+  --v-selected-bg: rgba(120, 160, 210, 0.08);
+  --v-selected-border: rgba(120, 160, 210, 0.22);
+
+  --v-star: #c4b484;
+
+  --v-font: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+
+  --v-space-2: 2px;
+  --v-space-4: 4px;
+  --v-space-6: 6px;
+  --v-space-8: 8px;
+  --v-space-12: 12px;
+  --v-space-16: 16px;
+  --v-space-20: 20px;
+  --v-space-24: 24px;
+
+  --v-radius: 2px;
+  --v-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  font-family: var(--v-font);
+  background: var(--v-deep);
+  color: var(--v-text);
 }
 
 * {
@@ -20,10 +62,10 @@ body,
 body {
   min-height: 100vh;
   cursor: none;
-  background:
-    radial-gradient(circle at top, rgba(63, 109, 255, 0.18), transparent 40%),
-    linear-gradient(180deg, #06101f 0%, #040713 100%);
+  background: var(--v-deep);
 }
+
+/* ── Shell ─────────────────────────────────────── */
 
 .app-shell {
   position: relative;
@@ -39,60 +81,133 @@ body {
 .viewport-fallback {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at center, rgba(69, 113, 255, 0.16), transparent 30%),
-    linear-gradient(180deg, #06101f 0%, #040713 100%);
+  background: var(--v-deep);
 }
 
 .game-viewport > canvas {
   display: block;
 }
 
+/* ── HUD Root ──────────────────────────────────── */
+
 .hud-root {
   pointer-events: none;
   position: absolute;
   inset: 0;
-  padding: 12px;
 }
 
-.debug-overlay {
+/* ── HUD Instruments ───────────────────────────── */
+
+.hud-instruments {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: var(--v-space-20);
+  left: var(--v-space-20);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.74rem;
-  line-height: 1.35;
-  color: rgba(203, 215, 255, 0.78);
-  text-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+  gap: var(--v-space-12);
+  min-width: 180px;
 }
 
-.debug-line {
-  white-space: nowrap;
+.hud-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-4) var(--v-space-16);
 }
+
+.hud-readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--v-space-6);
+}
+
+.hud-readout__label {
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--v-text-ghost);
+  min-width: 22px;
+}
+
+.hud-readout__value {
+  font-size: 0.6875rem;
+  color: var(--v-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Resource Bars ─────────────────────────────── */
+
+.hud-resources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v-space-6);
+}
+
+.hud-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-8);
+}
+
+.hud-bar__label {
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v-text-ghost);
+  min-width: 40px;
+}
+
+.hud-bar__track {
+  width: 72px;
+  height: 2px;
+  background: rgba(140, 160, 200, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-bar__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--v-hull);
+  transform-origin: left;
+  transition: width 200ms var(--v-ease);
+}
+
+.hud-bar__fill--shield {
+  background: var(--v-shield);
+}
+
+.hud-bar__fill--boost {
+  background: var(--v-boost);
+}
+
+.hud-bar__value {
+  font-size: 0.625rem;
+  color: var(--v-text-dim);
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Reticle ───────────────────────────────────── */
 
 .reticle {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
-  margin-top: -4px;
-  background: rgba(214, 226, 255, 0.92);
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-top: -3px;
+  background: rgba(200, 215, 240, 0.78);
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 18px rgba(104, 145, 255, 0.72);
+  border: 1px solid rgba(200, 215, 240, 0.1);
   transition:
-    transform 140ms ease,
-    width 140ms ease,
-    height 140ms ease,
-    margin-left 140ms ease,
-    margin-top 140ms ease,
-    box-shadow 140ms ease,
-    background 140ms ease;
+    transform 100ms var(--v-ease),
+    width 100ms var(--v-ease),
+    height 100ms var(--v-ease),
+    margin-left 100ms var(--v-ease),
+    margin-top 100ms var(--v-ease),
+    background 100ms var(--v-ease);
 }
 
 .reticle::before,
@@ -100,36 +215,274 @@ body {
   content: '';
   position: absolute;
   top: 50%;
-  width: 14px;
-  height: 2px;
-  margin-top: -1px;
-  background: rgba(214, 226, 255, 0.66);
-  box-shadow: 0 0 12px rgba(104, 145, 255, 0.5);
-  transition: transform 140ms ease, opacity 140ms ease;
+  width: 10px;
+  height: 1px;
+  margin-top: -0.5px;
+  background: rgba(200, 215, 240, 0.3);
+  transition:
+    transform 100ms var(--v-ease),
+    opacity 100ms var(--v-ease);
 }
 
 .reticle::before {
   right: 100%;
-  margin-right: 7px;
+  margin-right: 5px;
 }
 
 .reticle::after {
   left: 100%;
-  margin-left: 7px;
+  margin-left: 5px;
 }
 
 .reticle--ads {
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  margin-top: -5px;
-  background: rgba(164, 219, 255, 0.98);
-  box-shadow: 0 0 24px rgba(88, 173, 255, 0.85);
-  transform: scale(0.94);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  background: rgba(180, 210, 240, 0.9);
+  transform: scale(0.9);
 }
 
 .reticle--ads::before,
 .reticle--ads::after {
-  opacity: 0.55;
+  opacity: 0.35;
   transform: scaleX(0.55);
+}
+
+/* ── Map Overlay ───────────────────────────────── */
+
+.map-overlay {
+  position: absolute;
+  right: var(--v-space-20);
+  bottom: var(--v-space-20);
+  width: min(440px, calc(100vw - 40px));
+  max-height: min(72vh, 640px);
+  padding: var(--v-space-16) var(--v-space-20);
+  border: 1px solid var(--v-border);
+  background: rgba(4, 8, 16, 0.92);
+  backdrop-filter: blur(24px);
+  color: var(--v-text);
+  pointer-events: auto;
+  overflow-y: auto;
+  cursor: default;
+}
+
+.map-overlay * {
+  cursor: default;
+}
+
+.map-overlay::-webkit-scrollbar {
+  width: 3px;
+}
+
+.map-overlay::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.map-overlay::-webkit-scrollbar-thumb {
+  background: rgba(140, 160, 200, 0.1);
+}
+
+/* ── Map Header ────────────────────────────────── */
+
+.map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--v-space-12);
+  padding-bottom: var(--v-space-12);
+  border-bottom: 1px solid var(--v-border);
+}
+
+.map-header__title {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--v-text-dim);
+}
+
+.map-header__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--v-space-2);
+}
+
+.map-tab {
+  padding: var(--v-space-4) var(--v-space-8);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--v-text-ghost);
+  font-family: var(--v-font);
+  font-size: 0.5625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 100ms var(--v-ease),
+    border-color 100ms var(--v-ease);
+}
+
+.map-tab:hover {
+  color: var(--v-text-dim);
+}
+
+.map-tab--active {
+  color: var(--v-text);
+  border-color: var(--v-border-active);
+}
+
+.map-close {
+  padding: var(--v-space-4) var(--v-space-6);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--v-text-ghost);
+  font-family: var(--v-font);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: var(--v-space-4);
+  transition: color 100ms var(--v-ease);
+}
+
+.map-close:hover {
+  color: var(--v-text-dim);
+}
+
+/* ── Map Meta ──────────────────────────────────── */
+
+.map-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--v-space-4) var(--v-space-16);
+  padding: var(--v-space-12) 0;
+  font-size: 0.625rem;
+  color: var(--v-text-dim);
+  border-bottom: 1px solid var(--v-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-meta__item {
+  display: flex;
+  gap: var(--v-space-6);
+}
+
+.map-meta__label {
+  color: var(--v-text-ghost);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Local Planet Diagram ──────────────────────── */
+
+.map-diagram {
+  position: relative;
+  margin-top: var(--v-space-16);
+  aspect-ratio: 1;
+  width: min(100%, 280px);
+  border: 1px solid var(--v-border);
+  background: rgba(6, 12, 24, 0.5);
+}
+
+.map-diagram__star,
+.map-diagram__planet {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+}
+
+.map-diagram__star {
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--v-star);
+  box-shadow: 0 0 12px rgba(196, 180, 132, 0.35);
+}
+
+.map-diagram__planet {
+  border: 1px solid rgba(140, 160, 200, 0.12);
+}
+
+/* ── Planet List ───────────────────────────────── */
+
+.map-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--v-space-8);
+}
+
+.map-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--v-space-6) 0;
+  font-size: 0.625rem;
+  color: var(--v-text-dim);
+  border-bottom: 1px solid var(--v-border);
+}
+
+.map-list__item:last-child {
+  border-bottom: none;
+}
+
+.map-list__detail {
+  color: var(--v-text-ghost);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── System Map ────────────────────────────────── */
+
+.system-map {
+  margin-top: var(--v-space-16);
+}
+
+.system-map__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--v-space-4);
+}
+
+.system-map__node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--v-space-2);
+  padding: var(--v-space-8) var(--v-space-12);
+  border: 1px solid var(--v-border);
+  background: transparent;
+  color: var(--v-text);
+  font-family: var(--v-font);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 100ms var(--v-ease),
+    background 100ms var(--v-ease);
+}
+
+.system-map__node:hover {
+  border-color: var(--v-border-active);
+  background: rgba(140, 160, 200, 0.03);
+}
+
+.system-map__node--current {
+  border-color: var(--v-current-border);
+  background: var(--v-current-bg);
+}
+
+.system-map__node--selected {
+  border-color: var(--v-selected-border);
+  background: var(--v-selected-bg);
+}
+
+.system-map__node-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.system-map__node-meta {
+  font-size: 0.5625rem;
+  color: var(--v-text-ghost);
+  font-variant-numeric: tabular-nums;
 }

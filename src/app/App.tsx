@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, type ReactElement } from 'react';
 import { GameHud } from '@/app/GameHud';
+import { MapOverlay } from '@/app/MapOverlay';
 import { useInputBridge } from '@/game/input/useInputBridge';
 import { gameRuntime } from '@/game/runtime/GameRuntime';
 
@@ -21,6 +22,7 @@ export function App(): ReactElement {
       <Suspense fallback={<div className="viewport-fallback" />}>
         <GameViewport />
       </Suspense>
+      <MapOverlay />
       <GameHud />
     </main>
   );

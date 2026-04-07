@@ -19,6 +19,24 @@ import { stepShipController } from '@/game/sim/controller/stepShipController';
 import { generateSectorDescriptor } from '@/game/worldgen/galaxy';
 
 const SECTOR_SPAN = worldScaleTuning.sectorSpan;
+const HYPER_SPOOL_SECONDS = 1.1;
+const HYPER_EXIT_POSITION = { x: 0, y: 0, z: 220 };
+
+function areSectorCoordinatesEqual(left: SectorCoordinate, right: SectorCoordinate): boolean {
+  return left.x === right.x && left.y === right.y && left.z === right.z;
+}
+
+function getPostJumpShipState(ship: ShipState): ShipState {
+  return {
+    ...ship,
+    bankRadians: 0,
+    collisionCooldownSeconds: 0,
+    pitchRadians: 0,
+    position: HYPER_EXIT_POSITION,
+    velocity: { x: 0, y: 0, z: 0 },
+    weaponCooldownSeconds: 0,
+  };
+}
 
 function stepShipResources(
   resources: ShipResources,
@@ -374,6 +392,16 @@ export function stepSimulation(
   input: InputState,
   deltaSeconds: number,
 ): GameSnapshot {
+  const targetSystem = snapshot.travel.targetSystem;
+  const shouldSpoolHyper =
+    input.hyperCommit &&
+    targetSystem !== null &&
+    !areSectorCoordinatesEqual(snapshot.activeSystem, targetSystem);
+  const nextTravelProgress = shouldSpoolHyper
+    ? Math.min(1, snapshot.travel.progress + deltaSeconds / HYPER_SPOOL_SECONDS)
+    : 0;
+  const willCompleteJump = shouldSpoolHyper && nextTravelProgress >= 1;
+  const destinationSystem = willCompleteJump ? targetSystem! : snapshot.activeSystem;
   const steppedImpacts = stepImpacts(snapshot.impacts, deltaSeconds);
   const nextShip = stepShipTimers(
     stepShipController(snapshot.ship, input, deltaSeconds),
@@ -384,14 +412,28 @@ export function stepSimulation(
     input,
     deltaSeconds,
   );
-  const wrapped = wrapPositionToSector(nextShip.position, snapshot.activeSector);
+  const shipAfterTravel = willCompleteJump
+    ? getPostJumpShipState({
+        ...nextShip,
+        resources: nextShipResources,
+      })
+    : {
+        ...nextShip,
+        resources: nextShipResources,
+      };
+  const wrapped = willCompleteJump
+    ? {
+        didWrap: true,
+        position: shipAfterTravel.position,
+        sector: destinationSystem,
+      }
+    : wrapPositionToSector(shipAfterTravel.position, snapshot.activeSector);
   const activeSectorDescriptor = wrapped.didWrap
     ? generateSectorDescriptor(snapshot.universeSeed, wrapped.sector)
     : snapshot.activeSectorDescriptor;
   const shipAfterMovement: ShipState = {
-    ...nextShip,
+    ...shipAfterTravel,
     position: wrapped.position,
-    resources: nextShipResources,
   };
   const adsBlend = input.aimDownSights ? 1 : 0;
   const aimTarget = getAimTargetPoint(shipAfterMovement, activeSectorDescriptor.planets, adsBlend);
@@ -425,6 +467,7 @@ export function stepSimulation(
     elapsedSeconds: snapshot.elapsedSeconds + deltaSeconds,
     activeSector: wrapped.sector,
     activeSectorDescriptor,
+    activeSystem: destinationSystem,
     aimTarget: resolvedAimTarget,
     impacts: [...steppedImpacts, ...projectileStep.impacts],
     nextImpactId: projectileStep.nextImpactId,
@@ -432,6 +475,11 @@ export function stepSimulation(
     projectiles: projectilesWithSpawn,
     ship: {
       ...resolvedShip,
+    },
+    travel: {
+      mode: willCompleteJump ? 'local' : shouldSpoolHyper ? 'spooling' : 'local',
+      progress: willCompleteJump ? 0 : nextTravelProgress,
+      targetSystem: willCompleteJump ? null : targetSystem,
     },
   };
 }

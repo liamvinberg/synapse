@@ -3,6 +3,7 @@ import { mouseLookTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
 
 const keyBindings: Record<string, keyof ReturnType<typeof getInputPatch>> = {
+  KeyH: 'hyperCommit',
   KeyA: 'strafeRight',
   KeyD: 'strafeLeft',
   KeyS: 'thrustBackward',
@@ -16,6 +17,7 @@ function getInputPatch() {
   return {
     aim: { x: 0, y: 0 },
     aimDownSights: false,
+    hyperCommit: false,
     thrustForward: false,
     thrustBackward: false,
     strafeLeft: false,
@@ -29,6 +31,8 @@ function getInputPatch() {
 export function useInputBridge(): void {
   useEffect(() => {
     const setInputPatch = useGameStore.getState().setInputPatch;
+    const cycleMapLayer = useGameStore.getState().cycleMapLayer;
+    const setMapLayer = useGameStore.getState().setMapLayer;
     const readInput = useGameStore.getState;
 
     const applyKeyState = (code: string, isPressed: boolean) => {
@@ -42,6 +46,17 @@ export function useInputBridge(): void {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'KeyM') {
+        event.preventDefault();
+        cycleMapLayer();
+        return;
+      }
+
+      if (event.code === 'Escape') {
+        setMapLayer('none');
+        return;
+      }
+
       applyKeyState(event.code, true);
     };
 
@@ -94,12 +109,12 @@ export function useInputBridge(): void {
 
     const onPointerLockChange = () => {
       if (document.pointerLockElement === null) {
-        setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false });
+        setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false, hyperCommit: false });
       }
     };
 
     const onWindowBlur = () => {
-      setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false });
+      setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false, hyperCommit: false });
     };
 
     const onContextMenu = (event: MouseEvent) => {

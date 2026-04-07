@@ -15,6 +15,12 @@ export interface SectorCoordinate {
   z: number;
 }
 
+export interface TravelState {
+  mode: 'local' | 'spooling';
+  progress: number;
+  targetSystem: SectorCoordinate | null;
+}
+
 export interface PlanetDescriptor {
   color: string;
   id: string;
@@ -78,6 +84,7 @@ export interface ShipResources {
 export interface GameSnapshot {
   activeSector: SectorCoordinate;
   activeSectorDescriptor: SectorDescriptor;
+  activeSystem: SectorCoordinate;
   aimTarget: Vec3;
   elapsedSeconds: number;
   impacts: ImpactState[];
@@ -85,6 +92,7 @@ export interface GameSnapshot {
   nextProjectileId: number;
   projectiles: ProjectileState[];
   ship: ShipState;
+  travel: TravelState;
   universeSeed: string;
 }
 
@@ -94,6 +102,7 @@ export interface InputState {
   boost: boolean;
   brake: boolean;
   fire: boolean;
+  hyperCommit: boolean;
   strafeLeft: boolean;
   strafeRight: boolean;
   thrustBackward: boolean;

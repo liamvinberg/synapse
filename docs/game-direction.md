@@ -96,6 +96,10 @@ These should come before broader content work:
    - staggered
 5. one boss prototype designed around readability
 
+See also:
+
+- [`docs/weapon-model.md`](./weapon-model.md) - first canonical weapon split
+
 ## Things we are deliberately not doing yet
 
 - full flight sim controls

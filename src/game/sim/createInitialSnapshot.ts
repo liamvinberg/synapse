@@ -22,6 +22,7 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
     elapsedSeconds: 0,
     activeSector,
     activeSectorDescriptor: generateSectorDescriptor(universeSeed, activeSector),
+    activeSystem: activeSector,
     aimTarget: {
       x: initialPosition.x + initialCameraPose.position.x + initialCameraPose.forward.x * combatTuning.maxAimDistance,
       y: initialPosition.y + initialCameraPose.position.y + initialCameraPose.forward.y * combatTuning.maxAimDistance,
@@ -54,6 +55,11 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
       velocity: { x: 0, y: 0, z: 0 },
       weaponCooldownSeconds: 0,
       yawRadians: initialYawRadians,
+    },
+    travel: {
+      mode: 'local',
+      progress: 0,
+      targetSystem: null,
     },
   };
 }

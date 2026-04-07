@@ -37,6 +37,7 @@ describe('stepSimulation combat and collision', () => {
           boost: false,
           brake: false,
           fire: true,
+          hyperCommit: false,
           strafeLeft: false,
           strafeRight: false,
           thrustBackward: false,
@@ -87,6 +88,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: false,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -122,6 +124,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: false,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -162,6 +165,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: true,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -196,6 +200,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: true,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -244,6 +249,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: true,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -260,6 +266,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: false,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -283,6 +290,7 @@ describe('stepSimulation combat and collision', () => {
         boost: false,
         brake: false,
         fire: false,
+        hyperCommit: false,
         strafeLeft: false,
         strafeRight: false,
         thrustBackward: false,
@@ -292,5 +300,41 @@ describe('stepSimulation combat and collision', () => {
     );
 
     expect(nextSnapshot.aimTarget.z).toBeLessThan(snapshot.ship.position.z);
+  });
+
+  it('completes a hyperspace jump to the selected neighboring system', () => {
+    const snapshot = createInitialSnapshot('travel-test');
+    const targetSystem = { x: 1, y: 0, z: 0 };
+    const armedSnapshot: GameSnapshot = {
+      ...snapshot,
+      travel: {
+        mode: 'local',
+        progress: 0,
+        targetSystem,
+      },
+    };
+
+    const jumpedSnapshot = stepSimulation(
+      armedSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        aimDownSights: false,
+        boost: false,
+        brake: false,
+        fire: false,
+        hyperCommit: true,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1.2,
+    );
+
+    expect(jumpedSnapshot.activeSystem).toEqual(targetSystem);
+    expect(jumpedSnapshot.activeSector).toEqual(targetSystem);
+    expect(jumpedSnapshot.travel.mode).toBe('local');
+    expect(jumpedSnapshot.travel.targetSystem).toBeNull();
+    expect(jumpedSnapshot.ship.position.z).toBe(220);
   });
 });
