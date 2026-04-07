@@ -1,6 +1,7 @@
 import type {
   DamagePacket,
   GameSnapshot,
+  ImpactState,
   InputState,
   PlanetDescriptor,
   ProjectileState,
@@ -12,21 +13,12 @@ import type {
 import { combatTuning } from '@/game/config/tuning';
 import { applyDamage } from '@/game/sim/combat/damage';
 import { actionChaseControllerProfile } from '@/game/sim/controller/controllerProfile';
-import { addVec3, lengthVec3, normalizeVec3, scaleVec3, subtractVec3 } from '@/game/sim/math';
+import { addVec3, dotVec3, lengthVec3, normalizeVec3, scaleVec3, subtractVec3 } from '@/game/sim/math';
+import { getChaseCameraPose, getForwardVector } from '@/game/shared/chaseCamera';
 import { stepShipController } from '@/game/sim/controller/stepShipController';
 import { generateSectorDescriptor } from '@/game/worldgen/galaxy';
 
 const SECTOR_SPAN = 2400;
-
-function getForwardVector(yawRadians: number, pitchRadians: number): Vec3 {
-  const cosPitch = Math.cos(pitchRadians);
-
-  return {
-    x: Math.sin(yawRadians) * cosPitch,
-    y: -Math.sin(pitchRadians),
-    z: Math.cos(yawRadians) * cosPitch,
-  };
-}
 
 function stepShipResources(
   resources: ShipResources,
@@ -119,61 +111,198 @@ function stepShipTimers(ship: ShipState, deltaSeconds: number): ShipState {
   };
 }
 
-function createProjectile(ship: ShipState, projectileId: number): ProjectileState {
-  const forward = getForwardVector(ship.yawRadians, ship.pitchRadians);
+function stepImpacts(impacts: ImpactState[], deltaSeconds: number): ImpactState[] {
+  return impacts
+    .map((impact) => ({
+      ...impact,
+      ttlSeconds: impact.ttlSeconds - deltaSeconds,
+    }))
+    .filter((impact) => impact.ttlSeconds > 0);
+}
+
+function findRaySphereHitDistance(
+  origin: Vec3,
+  direction: Vec3,
+  center: Vec3,
+  radius: number,
+  maxDistance: number,
+): number | null {
+  const toCenter = subtractVec3(origin, center);
+  const a = dotVec3(direction, direction);
+  const b = 2 * dotVec3(toCenter, direction);
+  const c = dotVec3(toCenter, toCenter) - radius * radius;
+  const discriminant = b * b - 4 * a * c;
+
+  if (discriminant < 0) {
+    return null;
+  }
+
+  const sqrtDiscriminant = Math.sqrt(discriminant);
+  const near = (-b - sqrtDiscriminant) / (2 * a);
+  const far = (-b + sqrtDiscriminant) / (2 * a);
+  const candidates = [near, far].filter((value) => value >= 0 && value <= maxDistance);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return Math.min(...candidates);
+}
+
+function findSegmentSphereHit(
+  start: Vec3,
+  end: Vec3,
+  center: Vec3,
+  radius: number,
+): { normal: Vec3; point: Vec3 } | null {
+  const segment = subtractVec3(end, start);
+  const segmentLength = lengthVec3(segment);
+
+  if (segmentLength === 0) {
+    const offset = subtractVec3(start, center);
+
+    if (lengthVec3(offset) > radius) {
+      return null;
+    }
+
+    const normal = normalizeVec3(offset);
+    return {
+      normal,
+      point: addVec3(center, scaleVec3(normal, radius)),
+    };
+  }
+
+  const direction = scaleVec3(segment, 1 / segmentLength);
+  const hitDistance = findRaySphereHitDistance(start, direction, center, radius, segmentLength);
+
+  if (hitDistance === null) {
+    return null;
+  }
+
+  const point = addVec3(start, scaleVec3(direction, hitDistance));
+  return {
+    normal: normalizeVec3(subtractVec3(point, center)),
+    point,
+  };
+}
+
+function getAimTargetPoint(ship: ShipState, planets: PlanetDescriptor[]): Vec3 {
+  const speed = lengthVec3(ship.velocity);
+  const cameraPose = getChaseCameraPose(ship, speed);
+  let bestDistance: number = combatTuning.maxAimDistance;
+
+  for (const planet of planets) {
+    const hitDistance = findRaySphereHitDistance(
+      cameraPose.position,
+      cameraPose.forward,
+      planet.position,
+      planet.radius,
+      bestDistance,
+    );
+
+    if (hitDistance !== null) {
+      bestDistance = hitDistance;
+    }
+  }
+
+  return addVec3(cameraPose.position, scaleVec3(cameraPose.forward, bestDistance));
+}
+
+function createImpact(
+  position: Vec3,
+  impactId: number,
+): ImpactState {
+  return {
+    color: combatTuning.impactColor,
+    id: `impact-${impactId}`,
+    maxTtlSeconds: combatTuning.impactTtlSeconds,
+    position,
+    radius: combatTuning.impactRadius,
+    ttlSeconds: combatTuning.impactTtlSeconds,
+  };
+}
+
+function createProjectile(
+  ship: ShipState,
+  projectileId: number,
+  planets: PlanetDescriptor[],
+): ProjectileState {
+  const shipForward = getForwardVector(ship.yawRadians, ship.pitchRadians);
+  const muzzlePosition = addVec3(ship.position, scaleVec3(shipForward, combatTuning.projectileSpawnOffset));
+  const aimTarget = getAimTargetPoint(ship, planets);
+  const aimDirection = normalizeVec3(subtractVec3(aimTarget, muzzlePosition));
 
   return {
     damage: combatTuning.projectileDamage,
     id: `projectile-${projectileId}`,
-    position: addVec3(ship.position, scaleVec3(forward, combatTuning.projectileSpawnOffset)),
+    position: muzzlePosition,
     radius: combatTuning.projectileRadius,
     ttlSeconds: combatTuning.projectileTtlSeconds,
-    velocity: addVec3(ship.velocity, scaleVec3(forward, combatTuning.projectileSpeed)),
+    velocity: addVec3(ship.velocity, scaleVec3(aimDirection, combatTuning.projectileSpeed)),
   };
 }
 
 function stepProjectiles(
   projectiles: ProjectileState[],
-  deltaSeconds: number,
-): ProjectileState[] {
-  const halfSector = SECTOR_SPAN / 2;
-
-  return projectiles
-    .map((projectile) => ({
-      ...projectile,
-      position: addVec3(projectile.position, scaleVec3(projectile.velocity, deltaSeconds)),
-      ttlSeconds: projectile.ttlSeconds - deltaSeconds,
-    }))
-    .filter((projectile) => {
-      if (projectile.ttlSeconds <= 0) {
-        return false;
-      }
-
-      return (
-        Math.abs(projectile.position.x) <= halfSector &&
-        Math.abs(projectile.position.y) <= halfSector &&
-        Math.abs(projectile.position.z) <= halfSector
-      );
-    });
-}
-
-function collidesWithPlanet(
-  position: Vec3,
-  radius: number,
-  planet: PlanetDescriptor,
-): boolean {
-  const offset = subtractVec3(position, planet.position);
-  return lengthVec3(offset) <= planet.radius + radius;
-}
-
-function resolveProjectilePlanetHits(
-  projectiles: ProjectileState[],
+  nextImpactId: number,
   planets: PlanetDescriptor[],
-): ProjectileState[] {
-  return projectiles.filter(
-    (projectile) =>
-      !planets.some((planet) => collidesWithPlanet(projectile.position, projectile.radius, planet)),
-  );
+  deltaSeconds: number,
+): { impacts: ImpactState[]; nextImpactId: number; projectiles: ProjectileState[] } {
+  const halfSector = SECTOR_SPAN / 2;
+  const nextProjectiles: ProjectileState[] = [];
+  const impacts: ImpactState[] = [];
+  let impactId = nextImpactId;
+
+  for (const projectile of projectiles) {
+    const nextPosition = addVec3(projectile.position, scaleVec3(projectile.velocity, deltaSeconds));
+    const nextTtlSeconds = projectile.ttlSeconds - deltaSeconds;
+
+    if (nextTtlSeconds <= 0) {
+      continue;
+    }
+
+    let hitPoint: Vec3 | null = null;
+
+    for (const planet of planets) {
+      const hit = findSegmentSphereHit(
+        projectile.position,
+        nextPosition,
+        planet.position,
+        planet.radius + projectile.radius,
+      );
+
+      if (hit !== null) {
+        hitPoint = hit.point;
+        break;
+      }
+    }
+
+    if (hitPoint !== null) {
+      impacts.push(createImpact(hitPoint, impactId));
+      impactId += 1;
+      continue;
+    }
+
+    if (
+      Math.abs(nextPosition.x) > halfSector ||
+      Math.abs(nextPosition.y) > halfSector ||
+      Math.abs(nextPosition.z) > halfSector
+    ) {
+      continue;
+    }
+
+    nextProjectiles.push({
+      ...projectile,
+      position: nextPosition,
+      ttlSeconds: nextTtlSeconds,
+    });
+  }
+
+  return {
+    impacts,
+    nextImpactId: impactId,
+    projectiles: nextProjectiles,
+  };
 }
 
 function getCollisionDamagePacket(speed: number): DamagePacket | null {
@@ -189,21 +318,29 @@ function getCollisionDamagePacket(speed: number): DamagePacket | null {
 }
 
 function resolveShipPlanetCollisions(
+  previousPosition: Vec3,
   ship: ShipState,
   planets: PlanetDescriptor[],
 ): ShipState {
   let nextShip = ship;
 
   for (const planet of planets) {
-    const offset = subtractVec3(nextShip.position, planet.position);
-    const distance = lengthVec3(offset);
     const collisionDistance = planet.radius + combatTuning.shipCollisionRadius;
+    const currentOffset = subtractVec3(nextShip.position, planet.position);
+    const currentDistance = lengthVec3(currentOffset);
+    const sweptHit = findSegmentSphereHit(previousPosition, nextShip.position, planet.position, collisionDistance);
 
-    if (distance >= collisionDistance) {
+    if (currentDistance >= collisionDistance && sweptHit === null) {
       continue;
     }
 
-    const normal = normalizeVec3(offset);
+    const collisionNormal =
+      currentDistance < collisionDistance
+        ? normalizeVec3(
+            currentDistance === 0 ? scaleVec3(normalizeVec3(nextShip.velocity), -1) : currentOffset,
+          )
+        : sweptHit!.normal;
+
     const speed = lengthVec3(nextShip.velocity);
     const damagePacket =
       nextShip.collisionCooldownSeconds <= 0 ? getCollisionDamagePacket(speed) : null;
@@ -216,9 +353,9 @@ function resolveShipPlanetCollisions(
       ...nextShip,
       collisionCooldownSeconds:
         damagePacket === null ? nextShip.collisionCooldownSeconds : combatTuning.collisionCooldownSeconds,
-      position: addVec3(planet.position, scaleVec3(normal, collisionDistance)),
+      position: addVec3(planet.position, scaleVec3(collisionNormal, collisionDistance)),
       resources: nextResources,
-      velocity: scaleVec3(normal, Math.min(combatTuning.collisionBounceSpeed, speed * 0.25)),
+      velocity: scaleVec3(collisionNormal, Math.max(combatTuning.collisionBounceSpeed, speed * 0.35)),
     };
   }
 
@@ -230,6 +367,7 @@ export function stepSimulation(
   input: InputState,
   deltaSeconds: number,
 ): GameSnapshot {
+  const steppedImpacts = stepImpacts(snapshot.impacts, deltaSeconds);
   const nextShip = stepShipTimers(
     stepShipController(snapshot.ship, input, deltaSeconds),
     deltaSeconds,
@@ -249,15 +387,20 @@ export function stepSimulation(
     resources: nextShipResources,
   };
   const shouldFire = input.fire && shipAfterMovement.weaponCooldownSeconds <= 0;
-  const steppedProjectiles = stepProjectiles(snapshot.projectiles, deltaSeconds);
-  const projectilesWithSpawn = shouldFire
-    ? [...steppedProjectiles, createProjectile(shipAfterMovement, snapshot.nextProjectileId)]
-    : steppedProjectiles;
-  const survivingProjectiles = resolveProjectilePlanetHits(
-    projectilesWithSpawn,
+  const projectileStep = stepProjectiles(
+    snapshot.projectiles,
+    snapshot.nextImpactId,
     activeSectorDescriptor.planets,
+    deltaSeconds,
   );
+  const projectilesWithSpawn = shouldFire
+    ? [
+        ...projectileStep.projectiles,
+        createProjectile(shipAfterMovement, snapshot.nextProjectileId, activeSectorDescriptor.planets),
+      ]
+    : projectileStep.projectiles;
   const resolvedShip = resolveShipPlanetCollisions(
+    snapshot.ship.position,
     {
       ...shipAfterMovement,
       weaponCooldownSeconds: shouldFire
@@ -272,8 +415,10 @@ export function stepSimulation(
     elapsedSeconds: snapshot.elapsedSeconds + deltaSeconds,
     activeSector: wrapped.sector,
     activeSectorDescriptor,
+    impacts: [...steppedImpacts, ...projectileStep.impacts],
+    nextImpactId: projectileStep.nextImpactId,
     nextProjectileId: shouldFire ? snapshot.nextProjectileId + 1 : snapshot.nextProjectileId,
-    projectiles: survivingProjectiles,
+    projectiles: projectilesWithSpawn,
     ship: {
       ...resolvedShip,
     },

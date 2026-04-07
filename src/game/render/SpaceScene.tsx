@@ -41,6 +41,30 @@ function ProjectileBodies(): ReactElement {
   );
 }
 
+function ImpactBodies(): ReactElement {
+  const impacts = useGameStore((state) => state.snapshot.impacts);
+
+  return (
+    <>
+      {impacts.map((impact) => {
+        const opacity = impact.ttlSeconds / impact.maxTtlSeconds;
+        const scale = 1 + (1 - opacity) * 0.8;
+
+        return (
+          <mesh
+            key={impact.id}
+            position={[impact.position.x, impact.position.y, impact.position.z]}
+            scale={[scale, scale, scale]}
+          >
+            <sphereGeometry args={[impact.radius, 14, 14]} />
+            <meshBasicMaterial color={impact.color} transparent opacity={opacity * 0.9} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 function LocalSystem(): ReactElement {
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
   const shipState = useInterpolatedShipState();
@@ -59,6 +83,7 @@ function LocalSystem(): ReactElement {
       </mesh>
       <PlanetBodies />
       <ProjectileBodies />
+      <ImpactBodies />
     </group>
   );
 }

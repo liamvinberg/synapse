@@ -80,6 +80,7 @@ describe('stepSimulation combat and collision', () => {
     );
 
     expect(nextSnapshot.projectiles).toHaveLength(0);
+    expect(nextSnapshot.impacts).toHaveLength(1);
   });
 
   it('pushes the ship out of planets and applies collision damage at speed', () => {
@@ -121,5 +122,37 @@ describe('stepSimulation combat and collision', () => {
     expect(distance).toBeGreaterThanOrEqual(planet.radius + combatTuning.shipCollisionRadius - 0.001);
     expect(nextSnapshot.ship.resources.shield).toBeLessThan(60);
     expect(nextSnapshot.ship.collisionCooldownSeconds).toBe(combatTuning.collisionCooldownSeconds);
+  });
+
+  it('aims projectiles toward the camera reticle target instead of drifting above it', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const aimedSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        pitchRadians: 0,
+        position: { x: 0, y: 0, z: 220 },
+        velocity: { x: 0, y: 0, z: 0 },
+        yawRadians: Math.PI,
+      },
+    };
+
+    const nextSnapshot = stepSimulation(
+      aimedSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        boost: false,
+        brake: false,
+        fire: true,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    expect(nextSnapshot.projectiles).toHaveLength(1);
+    expect(nextSnapshot.projectiles[0].velocity.y).toBeLessThan(0);
   });
 });
