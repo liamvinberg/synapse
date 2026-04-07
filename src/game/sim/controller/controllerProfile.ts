@@ -15,17 +15,17 @@ export interface ControllerProfile {
 }
 
 export const actionChaseControllerProfile: ControllerProfile = {
-  bankResponse: 8,
+  bankResponse: 14,
   boostDrainPerSecond: 30,
-  boostMultiplier: 2.2,
+  boostMultiplier: 3.1,
   boostRechargePerSecond: 18,
-  brakeFactor: 0.78,
-  cursorPitchRate: 1.3,
-  cursorYawRate: 1.9,
-  linearDamping: 0.965,
+  brakeFactor: 0.64,
+  cursorPitchRate: 0.9,
+  cursorYawRate: 1.35,
+  linearDamping: 0.9,
   maxBankRadians: Math.PI / 4,
   maxPitchRadians: Math.PI / 3.25,
-  reverseThrust: 9,
+  reverseThrust: 10,
   strafeThrust: 14,
-  thrustForward: 18,
+  thrustForward: 24,
 };

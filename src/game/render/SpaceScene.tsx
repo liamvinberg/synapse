@@ -46,6 +46,9 @@ function LocalSystem(): ReactElement {
 
 export function SpaceScene(): ReactElement {
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
+  const shipVelocity = useGameStore((state) => state.snapshot.ship.velocity);
+  const shipSpeed = Math.hypot(shipVelocity.x, shipVelocity.y, shipVelocity.z);
+  const starfieldSpeed = 0.25 + Math.min(shipSpeed * 0.045, 1.75);
 
   return (
     <>
@@ -61,7 +64,7 @@ export function SpaceScene(): ReactElement {
         fade
         radius={800}
         saturation={0}
-        speed={0.25}
+        speed={starfieldSpeed}
       />
 
       <LocalSystem />

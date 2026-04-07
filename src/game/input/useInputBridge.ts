@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
+import { mouseLookTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
 
 const keyBindings: Record<string, keyof ReturnType<typeof getInputPatch>> = {
-  KeyA: 'strafeLeft',
-  KeyD: 'strafeRight',
+  KeyA: 'strafeRight',
+  KeyD: 'strafeLeft',
   KeyS: 'thrustBackward',
   KeyW: 'thrustForward',
   Space: 'brake',
@@ -26,6 +27,7 @@ function getInputPatch() {
 export function useInputBridge(): void {
   useEffect(() => {
     const setInputPatch = useGameStore.getState().setInputPatch;
+    const readInput = useGameStore.getState;
 
     const applyKeyState = (code: string, isPressed: boolean) => {
       const patchKey = keyBindings[code];
@@ -46,33 +48,53 @@ export function useInputBridge(): void {
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight / 2;
-      const normalizedX = (event.clientX - centerX) / centerX;
-      const normalizedY = (event.clientY - centerY) / centerY;
+      if (document.pointerLockElement === null) {
+        return;
+      }
 
+      const currentAim = readInput().input.aim;
       setInputPatch({
         aim: {
-          x: Math.max(-1, Math.min(1, normalizedX)),
-          y: Math.max(-1, Math.min(1, normalizedY)),
+          x:
+            currentAim.x +
+            event.movementX * mouseLookTuning.yawSensitivity * mouseLookTuning.yawDirection,
+          y:
+            currentAim.y +
+            event.movementY * mouseLookTuning.pitchSensitivity * mouseLookTuning.pitchDirection,
         },
       });
     };
 
-    const onPointerLeave = () => {
+    const onPointerDown = () => {
+      if (document.pointerLockElement === null) {
+        void document.body.requestPointerLock();
+      }
+    };
+
+    const onPointerLockChange = () => {
+      if (document.pointerLockElement === null) {
+        setInputPatch({ aim: { x: 0, y: 0 } });
+      }
+    };
+
+    const onWindowBlur = () => {
       setInputPatch({ aim: { x: 0, y: 0 } });
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('pointerlockchange', onPointerLockChange);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('blur', onWindowBlur);
+      document.removeEventListener('pointerlockchange', onPointerLockChange);
     };
   }, []);
 }

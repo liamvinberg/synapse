@@ -47,20 +47,29 @@ export class GameRuntime {
 
     let previousSnapshot = this.store.getState().previousSnapshot;
     let currentSnapshot = this.store.getState().snapshot;
+    let nextInput = this.store.getState().input;
+    let consumedAim = false;
 
     while (this.accumulatorMs >= FIXED_TIMESTEP_MS) {
-      const input = this.store.getState().input;
       previousSnapshot = currentSnapshot;
       currentSnapshot = stepSimulation(
         currentSnapshot,
-        input,
+        nextInput,
         FIXED_TIMESTEP_MS / 1000,
       );
+      if (nextInput.aim.x !== 0 || nextInput.aim.y !== 0) {
+        nextInput = {
+          ...nextInput,
+          aim: { x: 0, y: 0 },
+        };
+        consumedAim = true;
+      }
       this.accumulatorMs -= FIXED_TIMESTEP_MS;
     }
 
     this.store.setState({
       frameAlpha: this.accumulatorMs / FIXED_TIMESTEP_MS,
+      input: consumedAim ? nextInput : this.store.getState().input,
       previousSnapshot,
       snapshot: currentSnapshot,
     });
