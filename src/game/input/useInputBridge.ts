@@ -3,8 +3,8 @@ import { mouseLookTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
 
 const keyBindings: Record<string, keyof ReturnType<typeof getInputPatch>> = {
-  KeyA: 'strafeLeft',
-  KeyD: 'strafeRight',
+  KeyA: 'strafeRight',
+  KeyD: 'strafeLeft',
   KeyS: 'thrustBackward',
   KeyW: 'thrustForward',
   Space: 'brake',
