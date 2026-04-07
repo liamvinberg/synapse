@@ -10,7 +10,7 @@ import type {
   ShipState,
   Vec3,
 } from '@/game/sim/types';
-import { combatTuning } from '@/game/config/tuning';
+import { combatTuning, worldScaleTuning } from '@/game/config/tuning';
 import { applyDamage } from '@/game/sim/combat/damage';
 import { actionChaseControllerProfile } from '@/game/sim/controller/controllerProfile';
 import { addVec3, dotVec3, lengthVec3, normalizeVec3, scaleVec3, subtractVec3 } from '@/game/sim/math';
@@ -18,7 +18,7 @@ import { getChaseCameraPose, getForwardVector } from '@/game/shared/chaseCamera'
 import { stepShipController } from '@/game/sim/controller/stepShipController';
 import { generateSectorDescriptor } from '@/game/worldgen/galaxy';
 
-const SECTOR_SPAN = 2400;
+const SECTOR_SPAN = worldScaleTuning.sectorSpan;
 
 function stepShipResources(
   resources: ShipResources,

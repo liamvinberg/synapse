@@ -1,4 +1,5 @@
 import { createNoise3D } from 'simplex-noise';
+import { worldScaleTuning } from '@/game/config/tuning';
 import type { PlanetDescriptor, SectorCoordinate, SectorDescriptor } from '@/game/sim/types';
 import { createSeededRandom, hashSectorCoordinate, hashStringToSeed } from '@/game/worldgen/random';
 
@@ -29,8 +30,13 @@ function createPlanetDescriptors(
   const planets: PlanetDescriptor[] = [];
 
   for (let index = 0; index < planetCount; index += 1) {
-    const radius = 20 + planetRandom() * 110;
-    const orbitalDistance = 280 + index * 240 + planetRandom() * 120;
+    const radius =
+      worldScaleTuning.planetRadiusMin +
+      planetRandom() * (worldScaleTuning.planetRadiusMax - worldScaleTuning.planetRadiusMin);
+    const orbitalDistance =
+      worldScaleTuning.planetOrbitBaseDistance +
+      index * worldScaleTuning.planetOrbitSpacing +
+      planetRandom() * worldScaleTuning.planetOrbitVariance;
     const orbitalAngle = planetRandom() * Math.PI * 2;
 
     planets.push({
@@ -38,7 +44,7 @@ function createPlanetDescriptors(
       id: `planet-${sectorSeed.toString(36)}-${index}`,
       position: {
         x: Math.cos(orbitalAngle) * orbitalDistance,
-        y: (planetRandom() - 0.5) * 40,
+        y: (planetRandom() - 0.5) * worldScaleTuning.planetOrbitHeightRange,
         z: Math.sin(orbitalAngle) * orbitalDistance,
       },
       radius,

@@ -1,3 +1,5 @@
+import { flightTuning } from '@/game/config/tuning';
+
 export interface ControllerProfile {
   bankResponse: number;
   boostDrainPerSecond: number;
@@ -15,17 +17,17 @@ export interface ControllerProfile {
 }
 
 export const actionChaseControllerProfile: ControllerProfile = {
-  bankResponse: 14,
-  boostDrainPerSecond: 30,
-  boostMultiplier: 3.1,
-  boostRechargePerSecond: 18,
-  brakeFactor: 0.64,
+  bankResponse: flightTuning.bankResponse,
+  boostDrainPerSecond: flightTuning.boostDrainPerSecond,
+  boostMultiplier: flightTuning.boostMultiplier,
+  boostRechargePerSecond: flightTuning.boostRechargePerSecond,
+  brakeFactor: flightTuning.brakeFactor,
   cursorPitchRate: 0.9,
   cursorYawRate: 1.35,
-  linearDamping: 0.9,
-  maxBankRadians: Math.PI / 4,
-  maxPitchRadians: Math.PI / 3.25,
-  reverseThrust: 10,
-  strafeThrust: 14,
-  thrustForward: 24,
+  linearDamping: flightTuning.linearDamping,
+  maxBankRadians: flightTuning.maxBankRadians,
+  maxPitchRadians: flightTuning.maxPitchRadians,
+  reverseThrust: flightTuning.reverseThrust,
+  strafeThrust: flightTuning.strafeThrust,
+  thrustForward: flightTuning.thrustForward,
 };

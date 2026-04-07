@@ -8,12 +8,26 @@ export const mouseLookTuning = {
 export const chaseCameraTuning = {
   distanceBase: 9,
   distanceSpeedMax: 3,
-  distanceSpeedScale: 0.1,
+  distanceSpeedScale: 0.16,
   followSharpness: 10,
   height: 2.4,
   lookAheadDistance: 16,
   lookAheadHeight: 0.85,
   pitchLift: 0.9,
+} as const;
+
+export const flightTuning = {
+  bankResponse: 14,
+  boostDrainPerSecond: 30,
+  boostMultiplier: 4.35,
+  boostRechargePerSecond: 18,
+  brakeFactor: 0.7,
+  linearDamping: 0.925,
+  maxBankRadians: Math.PI / 4,
+  maxPitchRadians: Math.PI / 3.25,
+  reverseThrust: 14,
+  strafeThrust: 21,
+  thrustForward: 38,
 } as const;
 
 export const motionFeedbackTuning = {
@@ -24,8 +38,18 @@ export const motionFeedbackTuning = {
   engineLengthBase: 0.75,
   engineLengthBoost: 1.1,
   engineLengthSpeedScale: 0.05,
-  maxFovBoost: 9,
-  speedForMaxFov: 42,
+  maxFovBoost: 12,
+  speedForMaxFov: 56,
+} as const;
+
+export const worldScaleTuning = {
+  planetOrbitBaseDistance: 150,
+  planetOrbitHeightRange: 24,
+  planetOrbitSpacing: 135,
+  planetOrbitVariance: 55,
+  planetRadiusMax: 58,
+  planetRadiusMin: 12,
+  sectorSpan: 1400,
 } as const;
 
 export const combatTuning = {
