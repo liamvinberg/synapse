@@ -18,11 +18,13 @@ export function ShipMesh(): ReactElement {
       speed * motionFeedbackTuning.engineGlowSpeedScale +
       (boostActive ? motionFeedbackTuning.engineGlowBoost : 0),
   );
+  const engineExhaustAnchorZ = -0.95;
+  const engineExhaustPositionZ = engineExhaustAnchorZ - engineLength / 2;
 
   return (
     <group rotation={[0, shipState.yawRadians, 0]}>
       <group rotation={[shipState.pitchRadians, 0, shipState.bankRadians]}>
-        <mesh position={[0, 0, -0.95]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, 0, engineExhaustPositionZ]} rotation={[-Math.PI / 2, 0, 0]}>
           <coneGeometry args={[0.18 + engineGlow * 0.03, engineLength, 18, 1, true]} />
           <meshBasicMaterial
             color="#73a3ff"

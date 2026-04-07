@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { combatTuning } from '@/game/config/tuning';
+import { getForwardVector } from '@/game/shared/chaseCamera';
 import { createInitialSnapshot } from '@/game/sim/createInitialSnapshot';
 import { stepSimulation } from '@/game/sim/stepSimulation';
 import type { GameSnapshot } from '@/game/sim/types';
@@ -32,6 +33,7 @@ describe('stepSimulation combat and collision', () => {
       {
         ...{
           aim: { x: 0, y: 0 },
+          aimDownSights: false,
           boost: false,
           brake: false,
           fire: true,
@@ -46,6 +48,19 @@ describe('stepSimulation combat and collision', () => {
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
     expect(nextSnapshot.ship.weaponCooldownSeconds).toBe(combatTuning.fireCooldownSeconds);
+    const shipForward = getForwardVector(snapshot.ship.yawRadians, snapshot.ship.pitchRadians);
+    expect(nextSnapshot.projectiles[0].position.x).toBeCloseTo(
+      snapshot.ship.position.x + shipForward.x * combatTuning.projectileSpawnOffset,
+      5,
+    );
+    expect(nextSnapshot.projectiles[0].position.y).toBeCloseTo(
+      snapshot.ship.position.y + shipForward.y * combatTuning.projectileSpawnOffset,
+      5,
+    );
+    expect(nextSnapshot.projectiles[0].position.z).toBeCloseTo(
+      snapshot.ship.position.z + shipForward.z * combatTuning.projectileSpawnOffset,
+      5,
+    );
   });
 
   it('removes projectiles that hit planets', () => {
@@ -68,6 +83,7 @@ describe('stepSimulation combat and collision', () => {
       projectileSnapshot,
       {
         aim: { x: 0, y: 0 },
+        aimDownSights: false,
         boost: false,
         brake: false,
         fire: false,
@@ -102,6 +118,7 @@ describe('stepSimulation combat and collision', () => {
       collisionSnapshot,
       {
         aim: { x: 0, y: 0 },
+        aimDownSights: false,
         boost: false,
         brake: false,
         fire: false,
@@ -124,7 +141,7 @@ describe('stepSimulation combat and collision', () => {
     expect(nextSnapshot.ship.collisionCooldownSeconds).toBe(combatTuning.collisionCooldownSeconds);
   });
 
-  it('aims projectiles toward the camera reticle target instead of drifting above it', () => {
+  it('aims ship-origin projectiles toward the camera-defined aim target', () => {
     const snapshot = createSnapshotWithPlanet();
     const aimedSnapshot: GameSnapshot = {
       ...snapshot,
@@ -141,6 +158,7 @@ describe('stepSimulation combat and collision', () => {
       aimedSnapshot,
       {
         aim: { x: 0, y: 0 },
+        aimDownSights: false,
         boost: false,
         brake: false,
         fire: true,
@@ -154,6 +172,7 @@ describe('stepSimulation combat and collision', () => {
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
     expect(nextSnapshot.projectiles[0].velocity.y).toBeLessThan(0);
+    expect(nextSnapshot.projectiles[0].position.z).toBeLessThan(aimedSnapshot.ship.position.z);
   });
 
   it('does not bend projectile travel with inherited ship strafe velocity', () => {
@@ -173,6 +192,7 @@ describe('stepSimulation combat and collision', () => {
       movingSnapshot,
       {
         aim: { x: 0, y: 0 },
+        aimDownSights: false,
         boost: false,
         brake: false,
         fire: true,
@@ -190,5 +210,87 @@ describe('stepSimulation combat and collision', () => {
       nextSnapshot.projectiles[0].velocity.y,
       nextSnapshot.projectiles[0].velocity.z,
     )).toBeCloseTo(combatTuning.projectileSpeed, 4);
+  });
+
+  it('keeps the cursor as intent while letting nearby blockers win from ship origin', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const blockedSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [
+          {
+            color: '#ffffff',
+            id: 'planet-near-blocker',
+            position: { x: 0, y: 0, z: 217.5 },
+            radius: 0.8,
+          },
+        ],
+      },
+      ship: {
+        ...snapshot.ship,
+        pitchRadians: 0,
+        position: { x: 0, y: 0, z: 220 },
+        velocity: { x: 0, y: 0, z: 0 },
+        yawRadians: Math.PI,
+      },
+    };
+
+    const firedSnapshot = stepSimulation(
+      blockedSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        aimDownSights: false,
+        boost: false,
+        brake: false,
+        fire: true,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    const resolvedSnapshot = stepSimulation(
+      firedSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        aimDownSights: false,
+        boost: false,
+        brake: false,
+        fire: false,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    expect(resolvedSnapshot.impacts).toHaveLength(1);
+    expect(resolvedSnapshot.projectiles).toHaveLength(0);
+    expect(resolvedSnapshot.impacts[0].position.z).toBeGreaterThan(blockedSnapshot.aimTarget.z);
+  });
+  it('updates the shared aim target while aiming down sights', () => {
+    const snapshot = createSnapshotWithPlanet();
+
+    const nextSnapshot = stepSimulation(
+      snapshot,
+      {
+        aim: { x: 0, y: 0 },
+        aimDownSights: true,
+        boost: false,
+        brake: false,
+        fire: false,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    expect(nextSnapshot.aimTarget.z).toBeLessThan(snapshot.ship.position.z);
   });
 });

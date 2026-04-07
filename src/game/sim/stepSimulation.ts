@@ -186,14 +186,19 @@ function findSegmentSphereHit(
   };
 }
 
-function getAimTargetPoint(ship: ShipState, planets: PlanetDescriptor[]): Vec3 {
+function getAimTargetPoint(
+  ship: ShipState,
+  planets: PlanetDescriptor[],
+  adsBlend = 0,
+): Vec3 {
   const speed = lengthVec3(ship.velocity);
-  const cameraPose = getChaseCameraPose(ship, speed);
+  const cameraPose = getChaseCameraPose(ship, speed, adsBlend);
+  const cameraOrigin = addVec3(ship.position, cameraPose.position);
   let bestDistance: number = combatTuning.maxAimDistance;
 
   for (const planet of planets) {
     const hitDistance = findRaySphereHitDistance(
-      cameraPose.position,
+      cameraOrigin,
       cameraPose.forward,
       planet.position,
       planet.radius,
@@ -205,7 +210,7 @@ function getAimTargetPoint(ship: ShipState, planets: PlanetDescriptor[]): Vec3 {
     }
   }
 
-  return addVec3(cameraPose.position, scaleVec3(cameraPose.forward, bestDistance));
+  return addVec3(cameraOrigin, scaleVec3(cameraPose.forward, bestDistance));
 }
 
 function createImpact(
@@ -224,21 +229,23 @@ function createImpact(
 
 function createProjectile(
   ship: ShipState,
+  aimTarget: Vec3,
   projectileId: number,
-  planets: PlanetDescriptor[],
 ): ProjectileState {
   const shipForward = getForwardVector(ship.yawRadians, ship.pitchRadians);
-  const muzzlePosition = addVec3(ship.position, scaleVec3(shipForward, combatTuning.projectileSpawnOffset));
-  const aimTarget = getAimTargetPoint(ship, planets);
-  const aimDirection = normalizeVec3(subtractVec3(aimTarget, muzzlePosition));
+  const projectileOrigin = addVec3(
+    ship.position,
+    scaleVec3(shipForward, combatTuning.projectileSpawnOffset),
+  );
+  const projectileDirection = normalizeVec3(subtractVec3(aimTarget, projectileOrigin));
 
   return {
     damage: combatTuning.projectileDamage,
     id: `projectile-${projectileId}`,
-    position: muzzlePosition,
+    position: projectileOrigin,
     radius: combatTuning.projectileRadius,
     ttlSeconds: combatTuning.projectileTtlSeconds,
-    velocity: scaleVec3(aimDirection, combatTuning.projectileSpeed),
+    velocity: scaleVec3(projectileDirection, combatTuning.projectileSpeed),
   };
 }
 
@@ -386,6 +393,8 @@ export function stepSimulation(
     position: wrapped.position,
     resources: nextShipResources,
   };
+  const adsBlend = input.aimDownSights ? 1 : 0;
+  const aimTarget = getAimTargetPoint(shipAfterMovement, activeSectorDescriptor.planets, adsBlend);
   const shouldFire = input.fire && shipAfterMovement.weaponCooldownSeconds <= 0;
   const projectileStep = stepProjectiles(
     snapshot.projectiles,
@@ -396,7 +405,7 @@ export function stepSimulation(
   const projectilesWithSpawn = shouldFire
     ? [
         ...projectileStep.projectiles,
-        createProjectile(shipAfterMovement, snapshot.nextProjectileId, activeSectorDescriptor.planets),
+        createProjectile(shipAfterMovement, aimTarget, snapshot.nextProjectileId),
       ]
     : projectileStep.projectiles;
   const resolvedShip = resolveShipPlanetCollisions(
@@ -409,12 +418,14 @@ export function stepSimulation(
     },
     activeSectorDescriptor.planets,
   );
+  const resolvedAimTarget = getAimTargetPoint(resolvedShip, activeSectorDescriptor.planets, adsBlend);
 
   return {
     ...snapshot,
     elapsedSeconds: snapshot.elapsedSeconds + deltaSeconds,
     activeSector: wrapped.sector,
     activeSectorDescriptor,
+    aimTarget: resolvedAimTarget,
     impacts: [...steppedImpacts, ...projectileStep.impacts],
     nextImpactId: projectileStep.nextImpactId,
     nextProjectileId: shouldFire ? snapshot.nextProjectileId + 1 : snapshot.nextProjectileId,

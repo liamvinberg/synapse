@@ -6,14 +6,24 @@ export const mouseLookTuning = {
 } as const;
 
 export const chaseCameraTuning = {
+  adsDistance: 4.6,
+  adsFov: 42,
+  adsHeight: 1.2,
+  adsLookAheadDistance: 26,
+  adsLookAheadHeight: 0.2,
+  adsPitchLift: 0.28,
+  adsShoulderOffset: 0.42,
   distanceBase: 9,
   distanceSpeedMax: 3,
   distanceSpeedScale: 0.16,
+  hipFov: 55,
   followSharpness: 10,
   height: 2.4,
+  hipShoulderOffset: 1.15,
   lookAheadDistance: 16,
   lookAheadHeight: 0.85,
   pitchLift: 0.9,
+  shoulderOffsetSharpness: 12,
 } as const;
 
 export const flightTuning = {

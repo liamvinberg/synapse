@@ -4,6 +4,7 @@ import type { GameSnapshot, InputState } from '@/game/sim/types';
 
 const initialInputState: InputState = {
   aim: { x: 0, y: 0 },
+  aimDownSights: false,
   boost: false,
   brake: false,
   fire: false,

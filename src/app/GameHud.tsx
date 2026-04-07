@@ -6,6 +6,7 @@ function formatSector(x: number, y: number, z: number): string {
 }
 
 export function GameHud(): ReactElement {
+  const aimDownSights = useGameStore((state) => state.input.aimDownSights);
   const elapsedSeconds = useGameStore((state) => state.snapshot.elapsedSeconds);
   const activeSector = useGameStore((state) => state.snapshot.activeSector);
   const projectileCount = useGameStore((state) => state.snapshot.projectiles.length);
@@ -30,7 +31,7 @@ export function GameHud(): ReactElement {
           <div className="debug-line">shots {projectileCount}</div>
         </div>
       </section>
-      <div className="reticle" aria-hidden="true" />
+      <div className={aimDownSights ? 'reticle reticle--ads' : 'reticle'} aria-hidden="true" />
     </>
   );
 }

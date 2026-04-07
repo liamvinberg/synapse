@@ -78,6 +78,7 @@ export interface ShipResources {
 export interface GameSnapshot {
   activeSector: SectorCoordinate;
   activeSectorDescriptor: SectorDescriptor;
+  aimTarget: Vec3;
   elapsedSeconds: number;
   impacts: ImpactState[];
   nextImpactId: number;
@@ -89,6 +90,7 @@ export interface GameSnapshot {
 
 export interface InputState {
   aim: Vec2;
+  aimDownSights: boolean;
   boost: boolean;
   brake: boolean;
   fire: boolean;

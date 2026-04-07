@@ -15,6 +15,7 @@ const keyBindings: Record<string, keyof ReturnType<typeof getInputPatch>> = {
 function getInputPatch() {
   return {
     aim: { x: 0, y: 0 },
+    aimDownSights: false,
     thrustForward: false,
     thrustBackward: false,
     strafeLeft: false,
@@ -66,27 +67,39 @@ export function useInputBridge(): void {
       });
     };
 
-    const onPointerDown = () => {
+    const onPointerDown = (event: PointerEvent) => {
       if (document.pointerLockElement === null) {
         void document.body.requestPointerLock();
         return;
       }
 
-      setInputPatch({ fire: true });
+      if (event.button === 0) {
+        setInputPatch({ fire: true });
+      }
+
+      if (event.button === 2) {
+        setInputPatch({ aimDownSights: true });
+      }
     };
 
-    const onPointerUp = () => {
-      setInputPatch({ fire: false });
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.button === 0) {
+        setInputPatch({ fire: false });
+      }
+
+      if (event.button === 2) {
+        setInputPatch({ aimDownSights: false });
+      }
     };
 
     const onPointerLockChange = () => {
       if (document.pointerLockElement === null) {
-        setInputPatch({ aim: { x: 0, y: 0 }, fire: false });
+        setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false });
       }
     };
 
     const onWindowBlur = () => {
-      setInputPatch({ aim: { x: 0, y: 0 }, fire: false });
+      setInputPatch({ aim: { x: 0, y: 0 }, aimDownSights: false, fire: false });
     };
 
     const onContextMenu = (event: MouseEvent) => {
