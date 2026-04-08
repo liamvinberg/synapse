@@ -31,15 +31,6 @@ export interface PlanetDescriptor {
 
 export type PlanetBiome = 'rocky' | 'desert' | 'lush' | 'ice' | 'lava' | 'gas';
 
-export interface PlanetRingStyle {
-  color: string;
-  detailColor: string;
-  innerRadiusScale: number;
-  opacity: number;
-  outerRadiusScale: number;
-  tiltRadians: number;
-}
-
 export interface PlanetSurfaceStyle {
   atmosphereColor: string | null;
   atmosphereOpacity: number;
@@ -54,8 +45,7 @@ export interface PlanetSurfaceStyle {
   oceanLevel: number;
   polarCapAmount: number;
   primaryColor: string;
-  ring: PlanetRingStyle | null;
-   roughness: number;
+  roughness: number;
   secondaryColor: string;
   seed: number;
   specularStrength: number;

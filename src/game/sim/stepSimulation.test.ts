@@ -19,7 +19,6 @@ const testPlanetSurface = {
   oceanLevel: 0,
   polarCapAmount: 0,
   primaryColor: '#7d8d9f',
-  ring: null,
   roughness: 0.92,
   secondaryColor: '#495566',
   seed: 1234,

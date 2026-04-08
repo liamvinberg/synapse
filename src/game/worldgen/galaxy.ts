@@ -3,7 +3,6 @@ import { worldScaleTuning } from '@/game/config/tuning';
 import type {
   PlanetBiome,
   PlanetDescriptor,
-  PlanetRingStyle,
   PlanetSurfaceStyle,
   SectorCoordinate,
   SectorDescriptor,
@@ -82,16 +81,6 @@ const cloudPaletteByBiome: Record<PlanetBiome, readonly string[]> = {
   lava: [],
   lush: ['#f8fbff'],
   rocky: [],
-};
-
-const ringPaletteByBiome: Partial<Record<PlanetBiome, readonly [string, string][]>> = {
-  desert: [['#c59b6a', '#f0d5ad']],
-  gas: [
-    ['#bca587', '#ece0bf'],
-    ['#b6bad0', '#eef4ff'],
-  ],
-  ice: [['#a9bed8', '#f4fbff']],
-  rocky: [['#8d7b69', '#c7b8a0']],
 };
 
 const densityNoiseCache = new Map<string, ReturnType<typeof createNoise3D>>();
@@ -174,7 +163,6 @@ function createPlanetSurfaceStyle(
   const emissiveOptions = emissivePaletteByBiome[biome];
   const atmosphereOptions = atmospherePaletteByBiome[biome];
   const cloudOptions = cloudPaletteByBiome[biome];
-  const ringOptions = ringPaletteByBiome[biome];
   const emissiveColor =
     emissiveOptions.length > 0 && planetRandom() > 0.45
       ? emissiveOptions[Math.floor(planetRandom() * emissiveOptions.length)]
@@ -187,7 +175,6 @@ function createPlanetSurfaceStyle(
     cloudOptions.length > 0 && planetRandom() > 0.3
       ? cloudOptions[Math.floor(planetRandom() * cloudOptions.length)]
       : null;
-  const ring = createPlanetRingStyle(biome, ringOptions, planetRandom);
   const variant = Math.floor(planetRandom() * 3);
   const commonTextureScale =
     biome === 'gas'
@@ -249,7 +236,6 @@ function createPlanetSurfaceStyle(
           ? 0.1 + planetRandom() * 0.08
           : 0,
     primaryColor,
-    ring,
     roughness:
       biome === 'gas'
         ? 0.6 + planetRandom() * 0.2
@@ -297,38 +283,6 @@ function createPlanetSurfaceStyle(
             : biome === 'lava'
               ? 0.18 + planetRandom() * 0.26
               : 0.1 + planetRandom() * 0.18,
-  };
-}
-
-function createPlanetRingStyle(
-  biome: PlanetBiome,
-  ringOptions: readonly [string, string][] | undefined,
-  planetRandom: () => number,
-): PlanetRingStyle | null {
-  const ringChance =
-    biome === 'gas'
-      ? 0.34
-      : biome === 'ice'
-        ? 0.12
-        : biome === 'desert'
-          ? 0.05
-          : biome === 'rocky'
-            ? 0.03
-            : 0;
-
-  if (ringOptions === undefined || planetRandom() > ringChance) {
-    return null;
-  }
-
-  const [color, detailColor] = ringOptions[Math.floor(planetRandom() * ringOptions.length)] ?? ringOptions[0];
-
-  return {
-    color,
-    detailColor,
-    innerRadiusScale: 1.35 + planetRandom() * 0.2,
-    opacity: 0.18 + planetRandom() * 0.12,
-    outerRadiusScale: 1.95 + planetRandom() * 0.55,
-    tiltRadians: (planetRandom() - 0.5) * 0.9,
   };
 }
 

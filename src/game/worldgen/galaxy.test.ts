@@ -43,12 +43,6 @@ describe('generateSectorDescriptor', () => {
       expect(planet.surface.variant).toBeLessThanOrEqual(2);
       expect(planet.surface.warpAmount).toBeGreaterThanOrEqual(0);
       expect(planet.surface.warpAmount).toBeLessThanOrEqual(1);
-
-      if (planet.surface.ring !== null) {
-        expect(planet.surface.ring.color).toMatch(/^#/);
-        expect(planet.surface.ring.detailColor).toMatch(/^#/);
-        expect(planet.surface.ring.outerRadiusScale).toBeGreaterThan(planet.surface.ring.innerRadiusScale);
-      }
     }
   });
 });
