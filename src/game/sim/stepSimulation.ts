@@ -354,19 +354,30 @@ function resolveShipPlanetCollisions(
     const currentOffset = subtractVec3(nextShip.position, planet.position);
     const currentDistance = lengthVec3(currentOffset);
     const sweptHit = findSegmentSphereHit(previousPosition, nextShip.position, planet.position, collisionDistance);
+    const isOverlapping = currentDistance < collisionDistance;
 
-    if (currentDistance >= collisionDistance && sweptHit === null) {
+    if (!isOverlapping && sweptHit === null) {
+      continue;
+    }
+
+    if (!isOverlapping && sweptHit !== null && dotVec3(nextShip.velocity, sweptHit.normal) >= 0) {
       continue;
     }
 
     const collisionNormal =
-      currentDistance < collisionDistance
+      isOverlapping
         ? normalizeVec3(
             currentDistance === 0 ? scaleVec3(normalizeVec3(nextShip.velocity), -1) : currentOffset,
           )
         : sweptHit!.normal;
 
     const speed = lengthVec3(nextShip.velocity);
+    const normalSpeed = dotVec3(nextShip.velocity, collisionNormal);
+    const tangentialVelocity = subtractVec3(nextShip.velocity, scaleVec3(collisionNormal, normalSpeed));
+    const bounceSpeed =
+      normalSpeed < 0
+        ? Math.max(combatTuning.collisionBounceSpeed, -normalSpeed * 0.35)
+        : Math.max(normalSpeed, 0);
     const damagePacket =
       nextShip.collisionCooldownSeconds <= 0 ? getCollisionDamagePacket(speed) : null;
     const nextResources =
@@ -380,7 +391,7 @@ function resolveShipPlanetCollisions(
         damagePacket === null ? nextShip.collisionCooldownSeconds : combatTuning.collisionCooldownSeconds,
       position: addVec3(planet.position, scaleVec3(collisionNormal, collisionDistance)),
       resources: nextResources,
-      velocity: scaleVec3(collisionNormal, Math.max(combatTuning.collisionBounceSpeed, speed * 0.35)),
+      velocity: addVec3(tangentialVelocity, scaleVec3(collisionNormal, bounceSpeed)),
     };
   }
 

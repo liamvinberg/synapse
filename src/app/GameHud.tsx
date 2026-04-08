@@ -16,18 +16,19 @@ function LocalSensorMap(): ReactElement {
     <div className="sensor-map" aria-hidden="true">
       <div className="sensor-map__glow" />
       {planets.map((planet) => {
-        const x = 50 + (planet.position.x / furthestOrbit) * 34;
-        const y = 50 + (planet.position.z / furthestOrbit) * 34;
-        const size = Math.max(2, Math.min(8, planet.radius * 0.12));
+        const x = 50 + (planet.position.x / furthestOrbit) * 36;
+        const y = 50 + (planet.position.z / furthestOrbit) * 36;
+        const size = Math.max(3, Math.min(10, planet.radius * 0.16));
 
         return (
           <div
             key={planet.id}
             className="sensor-map__body"
             style={{
+              background: planet.color,
               height: `${size}px`,
               left: `${x}%`,
-              opacity: Math.min(0.88, 0.28 + planet.radius / 80),
+              opacity: Math.min(0.92, 0.35 + planet.radius / 70),
               top: `${y}%`,
               width: `${size}px`,
             }}
@@ -70,7 +71,7 @@ export function GameHud(): ReactElement {
           <div className="hud-secondary-readout">T {elapsedSeconds.toFixed(1)}</div>
         </div>
 
-        <div className="hud-route">
+        <div className={galaxyMapOpen ? 'hud-route hud-route--navigation' : 'hud-route'}>
           <div className="hud-route__label">Route</div>
           <div className="hud-route__value">{targetLabel}</div>
           <div className="hud-route__meta">

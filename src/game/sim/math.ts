@@ -32,6 +32,14 @@ export function dotVec3(left: Vec3, right: Vec3): number {
   return left.x * right.x + left.y * right.y + left.z * right.z;
 }
 
+export function crossVec3(left: Vec3, right: Vec3): Vec3 {
+  return {
+    x: left.y * right.z - left.z * right.y,
+    y: left.z * right.x - left.x * right.z,
+    z: left.x * right.y - left.y * right.x,
+  };
+}
+
 export function normalizeVec3(vector: Vec3): Vec3 {
   const length = lengthVec3(vector);
 

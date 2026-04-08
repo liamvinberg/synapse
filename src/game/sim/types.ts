@@ -26,6 +26,22 @@ export interface PlanetDescriptor {
   id: string;
   position: Vec3;
   radius: number;
+  surface: PlanetSurfaceStyle;
+}
+
+export type PlanetBiome = 'rocky' | 'desert' | 'lush' | 'ice' | 'lava' | 'gas';
+
+export interface PlanetSurfaceStyle {
+  banding: number;
+  biome: PlanetBiome;
+  detailColor: string;
+  emissiveColor: string | null;
+  polarCapAmount: number;
+  primaryColor: string;
+  roughness: number;
+  secondaryColor: string;
+  seed: number;
+  textureScale: number;
 }
 
 export interface SectorDescriptor {

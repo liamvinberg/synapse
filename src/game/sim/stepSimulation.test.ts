@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { combatTuning } from '@/game/config/tuning';
+import { combatTuning, flightTuning } from '@/game/config/tuning';
 import { getForwardVector } from '@/game/shared/chaseCamera';
 import { createInitialSnapshot } from '@/game/sim/createInitialSnapshot';
 import { stepSimulation } from '@/game/sim/stepSimulation';
 import type { GameSnapshot } from '@/game/sim/types';
+
+const testPlanetSurface = {
+  banding: 0.15,
+  biome: 'rocky' as const,
+  detailColor: '#d1c6b1',
+  emissiveColor: null,
+  polarCapAmount: 0,
+  primaryColor: '#7d8d9f',
+  roughness: 0.92,
+  secondaryColor: '#495566',
+  seed: 1234,
+  textureScale: 2.5,
+};
 
 function createSnapshotWithPlanet(): GameSnapshot {
   const snapshot = createInitialSnapshot('combat-test');
@@ -18,6 +31,7 @@ function createSnapshotWithPlanet(): GameSnapshot {
           id: 'planet-test',
           position: { x: 0, y: 0, z: 160 },
           radius: 18,
+          surface: testPlanetSurface,
         },
       ],
     },
@@ -144,6 +158,41 @@ describe('stepSimulation combat and collision', () => {
     expect(nextSnapshot.ship.collisionCooldownSeconds).toBe(combatTuning.collisionCooldownSeconds);
   });
 
+  it('does not re-collide when the ship is already leaving the planet surface', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const surfaceDistance =
+      snapshot.activeSectorDescriptor.planets[0].radius + combatTuning.shipCollisionRadius;
+    const departingSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        position: { x: 0, y: 0, z: 160 + surfaceDistance },
+        velocity: { x: 0, y: 0, z: 8 },
+      },
+    };
+
+    const nextSnapshot = stepSimulation(
+      departingSnapshot,
+      {
+        aim: { x: 0, y: 0 },
+        aimDownSights: false,
+        boost: false,
+        brake: false,
+        fire: false,
+        hyperCommit: false,
+        strafeLeft: false,
+        strafeRight: false,
+        thrustBackward: false,
+        thrustForward: false,
+      },
+      1 / 60,
+    );
+
+    expect(nextSnapshot.ship.position.z).toBeGreaterThan(departingSnapshot.ship.position.z);
+    expect(nextSnapshot.ship.velocity.z).toBeCloseTo(8 * Math.pow(flightTuning.linearDamping, 1), 4);
+    expect(nextSnapshot.ship.collisionCooldownSeconds).toBe(0);
+  });
+
   it('aims ship-origin projectiles toward the camera-defined aim target', () => {
     const snapshot = createSnapshotWithPlanet();
     const aimedSnapshot: GameSnapshot = {
@@ -175,7 +224,24 @@ describe('stepSimulation combat and collision', () => {
     );
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
-    expect(nextSnapshot.projectiles[0].velocity.y).toBeLessThan(0);
+    const projectile = nextSnapshot.projectiles[0];
+    const aimDirectionMagnitude = Math.hypot(
+      nextSnapshot.aimTarget.x - projectile.position.x,
+      nextSnapshot.aimTarget.y - projectile.position.y,
+      nextSnapshot.aimTarget.z - projectile.position.z,
+    );
+    expect(projectile.velocity.x / combatTuning.projectileSpeed).toBeCloseTo(
+      (nextSnapshot.aimTarget.x - projectile.position.x) / aimDirectionMagnitude,
+      5,
+    );
+    expect(projectile.velocity.y / combatTuning.projectileSpeed).toBeCloseTo(
+      (nextSnapshot.aimTarget.y - projectile.position.y) / aimDirectionMagnitude,
+      5,
+    );
+    expect(projectile.velocity.z / combatTuning.projectileSpeed).toBeCloseTo(
+      (nextSnapshot.aimTarget.z - projectile.position.z) / aimDirectionMagnitude,
+      5,
+    );
     expect(nextSnapshot.projectiles[0].position.z).toBeLessThan(aimedSnapshot.ship.position.z);
   });
 
@@ -229,6 +295,7 @@ describe('stepSimulation combat and collision', () => {
             id: 'planet-near-blocker',
             position: { x: 0, y: 0, z: 217.5 },
             radius: 0.8,
+            surface: testPlanetSurface,
           },
         ],
       },

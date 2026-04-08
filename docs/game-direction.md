@@ -13,9 +13,57 @@ The target feel is:
 - readable boss fights
 - deliberate movement and punish windows
 - mobility that feels expressive without becoming chaotic
+- mission-driven structure with clear travel and return beats
 
 The reference is closer to a Souls-like combat rhythm in space than to a full
 dogfighting sim.
+
+## Near-term player loop
+
+Synapse should move toward a clear mission loop instead of a pure free-flight
+sandbox.
+
+The canonical near-term loop is:
+
+1. arrive at a hub or safe station
+2. review contracts from one or more factions
+3. stack one or more missions headed toward the same destination when possible
+4. travel to the target system or local zone
+5. resolve the local objective through combat, pursuit, escort, scan, or boss
+   escalation
+6. extract or return to a station for payout, standing, and upgrades
+
+The important part is that travel exists to support missions and encounters, not
+to become its own simulation chore.
+
+## Mission and faction direction
+
+Synapse should lean toward a factional structure closer to crime-action games
+than to a neutral mission kiosk.
+
+The first canonical faction model should assume three broad groups:
+
+- **Authority**
+  - law, security, patrol, suppression, escort, and bounty work
+- **Outlaws**
+  - raids, theft, smuggling, sabotage, ambush, and extraction jobs
+- **Rebels**
+  - insurgent strikes, rescues, intel recovery, disruption, and asymmetric fights
+
+These are role categories, not final lore names.
+
+The player should be able to lean toward a side through repeated work without
+forcing a single irreversible morality choice in the first implementation.
+
+This means the progression layer should favor:
+
+- faction standing / reputation
+- better contracts and more dangerous opportunities from the groups you support
+- mission chains that reveal faction perspective through play rather than lore
+  dumps
+
+The goal is not to become an MMO reputation spreadsheet. The goal is to make
+mission choice feel like choosing who you are helping or hurting.
 
 ## Controller direction
 
@@ -95,6 +143,18 @@ These should come before broader content work:
    - recovery
    - staggered
 5. one boss prototype designed around readability
+6. mission board / contract flow
+   - location-tagged contracts
+   - stackable jobs toward the same route
+   - payout plus faction standing
+7. hub loop
+   - briefing
+   - payout / debrief
+   - lightweight upgrade step
+8. travel ceremony
+   - route planning
+   - alignment indicator
+   - hyperspace spool and arrival beat
 
 See also:
 
@@ -105,8 +165,18 @@ See also:
 - full flight sim controls
 - seamless landable planets
 - multiplayer-first architecture
+- irreversible faction-lock morality systems in the first pass
 - bloated combat stat systems
 - deep content pipelines before the combat loop feels right
+
+This does **not** mean Synapse should ignore future co-op.
+
+The intended rule is:
+
+- build a strong solo-first mission loop now
+- keep mission state, faction state, and travel state compatible with future co-op
+- avoid designing the entire game around multiplayer infrastructure before the
+  combat and mission loop are proven
 
 ## Rule of thumb for future decisions
 

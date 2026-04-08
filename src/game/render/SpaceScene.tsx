@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Stars } from '@react-three/drei';
 import { CameraRig } from '@/game/render/CameraRig';
+import { PlanetBody } from '@/game/render/PlanetBody';
 import { ShipMesh } from '@/game/render/ShipMesh';
 import { useInterpolatedShipState } from '@/game/render/useInterpolatedShipState';
 import { useGameStore } from '@/game/state/gameStore';
@@ -11,13 +12,7 @@ function PlanetBodies(): ReactElement {
   return (
     <>
       {planets.map((planet) => (
-        <mesh
-          key={planet.id}
-          position={[planet.position.x, planet.position.y, planet.position.z]}
-        >
-          <sphereGeometry args={[planet.radius, 48, 48]} />
-          <meshStandardMaterial color={planet.color} roughness={0.92} metalness={0.08} />
-        </mesh>
+        <PlanetBody key={planet.id} planet={planet} />
       ))}
     </>
   );

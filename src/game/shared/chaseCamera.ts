@@ -1,5 +1,5 @@
 import { chaseCameraTuning } from '@/game/config/tuning';
-import { normalizeVec3, subtractVec3 } from '@/game/sim/math';
+import { addVec3, crossVec3, normalizeVec3, scaleVec3, subtractVec3 } from '@/game/sim/math';
 import type { Vec3 } from '@/game/sim/types';
 
 interface ForwardFacingState {
@@ -50,7 +50,6 @@ export function getChaseCameraPose(
     Math.min(speed * chaseCameraTuning.distanceSpeedScale, chaseCameraTuning.distanceSpeedMax);
   const distance = interpolate(hipDistance, chaseCameraTuning.adsDistance, normalizedBlend);
   const height = interpolate(chaseCameraTuning.height, chaseCameraTuning.adsHeight, normalizedBlend);
-  const pitchLift = interpolate(chaseCameraTuning.pitchLift, chaseCameraTuning.adsPitchLift, normalizedBlend);
   const shoulderOffset = interpolate(
     chaseCameraTuning.hipShoulderOffset,
     chaseCameraTuning.adsShoulderOffset,
@@ -61,21 +60,20 @@ export function getChaseCameraPose(
     chaseCameraTuning.adsLookAheadDistance,
     normalizedBlend,
   );
-  const lookAheadHeight = interpolate(
-    chaseCameraTuning.lookAheadHeight,
-    chaseCameraTuning.adsLookAheadHeight,
-    normalizedBlend,
+  const shipUp = normalizeVec3(crossVec3(shipForward, shipRight));
+  const anchor = {
+    x: 0,
+    y: chaseCameraTuning.anchorHeight,
+    z: 0,
+  };
+  const position = addVec3(
+    addVec3(anchor, scaleVec3(shipUp, height)),
+    addVec3(scaleVec3(shipForward, -distance), scaleVec3(shipRight, -shoulderOffset)),
   );
-  const position = {
-    x: -shipForward.x * distance - shipRight.x * shoulderOffset,
-    y: height - shipForward.y * pitchLift,
-    z: -shipForward.z * distance - shipRight.z * shoulderOffset,
-  };
-  const lookTarget = {
-    x: shipForward.x * lookAheadDistance,
-    y: lookAheadHeight + shipForward.y * lookAheadDistance,
-    z: shipForward.z * lookAheadDistance,
-  };
+  const lookTarget = addVec3(
+    addVec3(anchor, scaleVec3(shipUp, height)),
+    scaleVec3(shipForward, lookAheadDistance),
+  );
 
   return {
     forward: normalizeVec3(subtractVec3(lookTarget, position)),
