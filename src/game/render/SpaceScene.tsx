@@ -247,9 +247,14 @@ function LocalSystem(): ReactElement {
         -shipState.position.z,
       ]}
     >
+      <pointLight color={starColor} decay={1} distance={2600} intensity={4200} />
       <mesh>
-        <sphereGeometry args={[2.4, 48, 48]} />
-        <meshBasicMaterial color={starColor} />
+        <sphereGeometry args={[2.8, 48, 48]} />
+        <meshBasicMaterial color={starColor} toneMapped={false} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[6.8, 40, 40]} />
+        <meshBasicMaterial color={starColor} opacity={0.18} toneMapped={false} transparent />
       </mesh>
       <PlanetBodies />
       <ProjectileBodies />
@@ -414,10 +419,9 @@ export function SpaceScene(): ReactElement {
     <>
       <color attach="background" args={[palette.background]} />
       <fog attach="fog" args={[palette.fog, 340, 3000]} />
-      <ambientLight intensity={0.14} />
-      <hemisphereLight args={[palette.haze, palette.background, 0.18]} />
+      <ambientLight intensity={0.2} />
+      <hemisphereLight args={[palette.haze, palette.background, 0.24]} />
       <pointLight color={palette.fillLight} intensity={12} distance={1400} position={[340, 220, -520]} />
-      <pointLight color={starColor} intensity={260} distance={0} position={[0, 0, 0]} />
 
       <SectorBackdrop starfieldSpeed={starfieldSpeed} />
 
