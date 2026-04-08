@@ -93,7 +93,7 @@ export function useInputBridge(): void {
       });
     };
 
-    const onPointerDown = (event: PointerEvent) => {
+    const onMouseDown = (event: MouseEvent) => {
       if (readInput().galaxyMapOpen) {
         return;
       }
@@ -112,7 +112,7 @@ export function useInputBridge(): void {
       }
     };
 
-    const onPointerUp = (event: PointerEvent) => {
+    const onMouseUp = (event: MouseEvent) => {
       if (event.button === 0) {
         setInputPatch({ fire: false });
       }
@@ -138,8 +138,8 @@ export function useInputBridge(): void {
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('blur', onWindowBlur);
     window.addEventListener('contextmenu', onContextMenu);
@@ -148,8 +148,8 @@ export function useInputBridge(): void {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('contextmenu', onContextMenu);
