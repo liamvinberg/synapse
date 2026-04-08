@@ -273,7 +273,8 @@ button {
 .reticle__ring,
 .reticle__dot,
 .reticle__bar,
-.reticle__charge {
+.reticle__charge,
+.reticle__label {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -322,6 +323,15 @@ button {
   transition: width 120ms ease, height 120ms ease, opacity 120ms ease, border-color 120ms ease;
 }
 
+.reticle__label {
+  top: calc(50% + 24px);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: rgba(188, 220, 255, 0.62);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .reticle--ads {
   transform: scale(0.92);
 }
@@ -336,6 +346,16 @@ button {
 
 .reticle--ads .reticle__dot {
   background: rgba(255, 255, 255, 0.94);
+}
+
+.reticle--secondary-ready .reticle__ring,
+.reticle--secondary-ready .reticle__charge {
+  border-color: rgba(132, 194, 255, 0.38);
+  box-shadow: 0 0 22px rgba(90, 150, 255, 0.14);
+}
+
+.reticle--secondary-ready .reticle__label {
+  color: rgba(188, 220, 255, 0.78);
 }
 
 .reticle--charging .reticle__ring,

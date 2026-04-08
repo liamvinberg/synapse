@@ -392,6 +392,31 @@ describe('stepSimulation combat and collision', () => {
     expect(firedSnapshot.ship.velocity.z).toBeGreaterThan(0);
   });
 
+  it('fires a weak secondary shot on a quick ADS click', () => {
+    const snapshot = createInitialSnapshot('secondary-quick-click-test');
+
+    const tappedSnapshot = stepSimulation(
+      snapshot,
+      inputState({
+        aimDownSights: true,
+        fire: true,
+      }),
+      0.06,
+    );
+
+    const firedSnapshot = stepSimulation(
+      tappedSnapshot,
+      inputState({
+        aimDownSights: true,
+        fire: false,
+      }),
+      1 / 60,
+    );
+
+    expect(firedSnapshot.projectiles).toHaveLength(1);
+    expect(firedSnapshot.projectiles[0].kind).toBe('secondary');
+  });
+
   it('cancels the secondary charge when leaving aim mode without firing a primary shot', () => {
     const snapshot = createInitialSnapshot('secondary-cancel-test');
 
