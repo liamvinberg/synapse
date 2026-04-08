@@ -27,7 +27,7 @@ function ProjectileTrace({
 }): ReactElement {
   const direction = new Vector3(...velocity).normalize();
   const quaternion = new Quaternion().setFromUnitVectors(UP_AXIS, direction);
-  const center = new Vector3(...position).addScaledVector(direction, -length * 0.45);
+  const center = new Vector3(...position).addScaledVector(direction, length * 0.5);
 
   return (
     <group position={center.toArray()} quaternion={quaternion}>

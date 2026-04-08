@@ -133,13 +133,6 @@ export function GameHud(): ReactElement {
         <div className="reticle__bar reticle__bar--left" />
         <div className="reticle__bar reticle__bar--right" />
         <div className="reticle__charge" />
-        {aimDownSights ? (
-          <div className="reticle__label">
-            {ship.secondaryChargeSeconds > 0
-              ? `${Math.round(secondaryChargePct * 100)}%`
-              : 'LANCE'}
-          </div>
-        ) : null}
       </div>
     </>
   );
