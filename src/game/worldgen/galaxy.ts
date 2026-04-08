@@ -3,6 +3,7 @@ import { worldScaleTuning } from '@/game/config/tuning';
 import type {
   PlanetBiome,
   PlanetDescriptor,
+  PlanetRingStyle,
   PlanetSurfaceStyle,
   SectorCoordinate,
   SectorDescriptor,
@@ -13,44 +14,84 @@ const starPalette = ['#f7d7a8', '#f8f1ff', '#ffd6a5', '#ffe29a', '#cad8ff'] as c
 
 const biomePalettes: Record<PlanetBiome, readonly [string, string, string][]> = {
   desert: [
-    ['#7d5238', '#c88b55', '#f0cf8f'],
-    ['#8b603f', '#c89d63', '#f1d5a0'],
-    ['#6d4833', '#b7854e', '#e7b86f'],
+    ['#7b5a3d', '#b98a58', '#d6c096'],
+    ['#8a6542', '#c49561', '#ddc393'],
+    ['#705236', '#ae7f4f', '#ccb287'],
+    ['#8c6f47', '#c7a06a', '#e0cd9f'],
+    ['#7a6146', '#b68c66', '#d4b48f'],
   ],
   gas: [
-    ['#5f7287', '#b9c8d2', '#e5d4b1'],
-    ['#6d5a7d', '#bca9d2', '#f1d8a9'],
-    ['#82624b', '#d0a97e', '#f2dec0'],
+    ['#7f7364', '#c8b79d', '#ece1c8'],
+    ['#796a58', '#c9b192', '#f0dfc2'],
+    ['#5e6f89', '#9db6d5', '#dbe8f2'],
+    ['#74727c', '#bbb4c7', '#e3dced'],
+    ['#6d7f69', '#a5b497', '#dbe2cd'],
   ],
   ice: [
-    ['#7a94b7', '#b6d7f1', '#eff8ff'],
-    ['#6f8aa6', '#a7c4df', '#eef6ff'],
-    ['#6d89b5', '#c6e2f7', '#ffffff'],
+    ['#7e91a7', '#bfd4e3', '#eef5fb'],
+    ['#6c7f97', '#adc5da', '#edf6ff'],
+    ['#8199b6', '#d3e4f1', '#f7fbff'],
+    ['#7c8da4', '#c7d7e6', '#eef4f8'],
+    ['#8aa3be', '#dbeaf4', '#ffffff'],
   ],
   lava: [
-    ['#1f1c24', '#60302b', '#ff7b2f'],
-    ['#1b1520', '#572a1d', '#ff8f43'],
-    ['#231b1a', '#4f2d22', '#ff6b2c'],
+    ['#1a1718', '#352622', '#b84d20'],
+    ['#171416', '#3a2824', '#c35b27'],
+    ['#1c1818', '#40302a', '#d06a32'],
+    ['#201b1a', '#47342d', '#bb5423'],
+    ['#151314', '#30221f', '#a84720'],
   ],
   lush: [
-    ['#204a7a', '#5a9a65', '#d2e7a4'],
-    ['#1f4d67', '#4f9a5d', '#b8d98a'],
-    ['#225478', '#4e8d58', '#d6f0bc'],
+    ['#27557f', '#5e8f4e', '#c3b285'],
+    ['#2e5f8b', '#689b59', '#cfbf98'],
+    ['#234d70', '#4f8147', '#b9a67a'],
+    ['#37648f', '#739961', '#d3c48f'],
+    ['#2b5977', '#5c8b4d', '#bea676'],
   ],
   rocky: [
-    ['#3c4858', '#7d8d9f', '#cbbf9d'],
-    ['#4a3f3f', '#87746a', '#d0c0a1'],
-    ['#323a46', '#6c7787', '#bdb29d'],
+    ['#4a443f', '#837568', '#c4b6a1'],
+    ['#534841', '#8e7e70', '#cdbba4'],
+    ['#454b53', '#798391', '#c0b6a1'],
+    ['#5c5148', '#97816d', '#d0bea8'],
+    ['#40464d', '#727d86', '#c7bca7'],
   ],
 };
 
 const emissivePaletteByBiome: Record<PlanetBiome, readonly string[]> = {
   desert: [],
-  gas: ['#8fb6ff', '#f7d19a'],
-  ice: ['#7ab8ff'],
-  lava: ['#ff6a21', '#ff9d52'],
-  lush: ['#7dc8ff'],
+  gas: [],
+  ice: [],
+  lava: ['#ff6b2a', '#ff8a47'],
+  lush: [],
   rocky: [],
+};
+
+const atmospherePaletteByBiome: Record<PlanetBiome, readonly string[]> = {
+  desert: ['#d7b487'],
+  gas: ['#cfd7e6', '#d9ceb4', '#b4c6dc'],
+  ice: ['#d9eef6'],
+  lava: ['#5a2a1d'],
+  lush: ['#91b9df'],
+  rocky: [],
+};
+
+const cloudPaletteByBiome: Record<PlanetBiome, readonly string[]> = {
+  desert: ['#f5deb1'],
+  gas: ['#f5ead0', '#e7f0ff'],
+  ice: ['#ffffff'],
+  lava: [],
+  lush: ['#f8fbff'],
+  rocky: [],
+};
+
+const ringPaletteByBiome: Partial<Record<PlanetBiome, readonly [string, string][]>> = {
+  desert: [['#c59b6a', '#f0d5ad']],
+  gas: [
+    ['#bca587', '#ece0bf'],
+    ['#b6bad0', '#eef4ff'],
+  ],
+  ice: [['#a9bed8', '#f4fbff']],
+  rocky: [['#8d7b69', '#c7b8a0']],
 };
 
 const densityNoiseCache = new Map<string, ReturnType<typeof createNoise3D>>();
@@ -131,12 +172,44 @@ function createPlanetSurfaceStyle(
   const [primaryColor, secondaryColor, detailColor] =
     paletteSet[Math.floor(planetRandom() * paletteSet.length)] ?? paletteSet[0];
   const emissiveOptions = emissivePaletteByBiome[biome];
+  const atmosphereOptions = atmospherePaletteByBiome[biome];
+  const cloudOptions = cloudPaletteByBiome[biome];
+  const ringOptions = ringPaletteByBiome[biome];
   const emissiveColor =
     emissiveOptions.length > 0 && planetRandom() > 0.45
       ? emissiveOptions[Math.floor(planetRandom() * emissiveOptions.length)]
       : null;
+  const atmosphereColor =
+    atmosphereOptions.length > 0 && planetRandom() > 0.25
+      ? atmosphereOptions[Math.floor(planetRandom() * atmosphereOptions.length)]
+      : null;
+  const cloudColor =
+    cloudOptions.length > 0 && planetRandom() > 0.3
+      ? cloudOptions[Math.floor(planetRandom() * cloudOptions.length)]
+      : null;
+  const ring = createPlanetRingStyle(biome, ringOptions, planetRandom);
+  const variant = Math.floor(planetRandom() * 3);
+  const commonTextureScale =
+    biome === 'gas'
+      ? 1.4 + planetRandom() * 2.2
+      : biome === 'lava'
+        ? 2 + planetRandom() * 3
+        : 1.6 + planetRandom() * 3.4;
 
   return {
+    atmosphereColor,
+    atmosphereOpacity:
+      atmosphereColor === null
+        ? 0
+        : biome === 'gas'
+          ? 0.32 + planetRandom() * 0.12
+          : 0.14 + planetRandom() * 0.12,
+    atmosphereScale:
+      atmosphereColor === null
+        ? 1.02
+        : biome === 'gas'
+          ? 1.05 + planetRandom() * 0.035
+          : 1.025 + planetRandom() * 0.025,
     banding:
       biome === 'gas'
         ? 0.55 + planetRandom() * 0.35
@@ -144,8 +217,31 @@ function createPlanetSurfaceStyle(
           ? 0.16 + planetRandom() * 0.18
           : 0.04 + planetRandom() * 0.14,
     biome,
+    cloudColor,
+    cloudDensity:
+      cloudColor === null
+        ? 0
+        : biome === 'gas'
+          ? 0.52 + planetRandom() * 0.22
+          : 0.22 + planetRandom() * 0.28,
+    craterDensity:
+      biome === 'rocky'
+        ? 0.32 + planetRandom() * 0.48
+        : biome === 'desert'
+          ? 0.08 + planetRandom() * 0.22
+          : biome === 'ice'
+            ? 0.06 + planetRandom() * 0.12
+            : biome === 'lava'
+              ? 0.04 + planetRandom() * 0.1
+              : 0,
     detailColor,
     emissiveColor,
+    oceanLevel:
+      biome === 'lush'
+        ? 0.44 + planetRandom() * 0.12
+        : biome === 'ice'
+          ? 0.1 + planetRandom() * 0.08
+          : 0,
     polarCapAmount:
       biome === 'ice'
         ? 0.42 + planetRandom() * 0.18
@@ -153,20 +249,86 @@ function createPlanetSurfaceStyle(
           ? 0.1 + planetRandom() * 0.08
           : 0,
     primaryColor,
+    ring,
     roughness:
       biome === 'gas'
-        ? 0.78 + planetRandom() * 0.12
+        ? 0.6 + planetRandom() * 0.2
         : biome === 'lava'
-          ? 0.82 + planetRandom() * 0.1
-          : 0.88 + planetRandom() * 0.1,
+          ? 0.72 + planetRandom() * 0.18
+          : biome === 'ice'
+            ? 0.38 + planetRandom() * 0.22
+            : biome === 'lush'
+              ? 0.62 + planetRandom() * 0.2
+              : 0.76 + planetRandom() * 0.18,
     secondaryColor,
     seed: (sectorSeed ^ ((index + 1) * 0x45d9f3b)) >>> 0,
+    specularStrength:
+      biome === 'lush'
+        ? 0.2 + planetRandom() * 0.28
+        : biome === 'ice'
+          ? 0.34 + planetRandom() * 0.26
+          : biome === 'gas'
+            ? 0.1 + planetRandom() * 0.16
+            : biome === 'lava'
+              ? 0.04 + planetRandom() * 0.08
+              : 0.03 + planetRandom() * 0.08,
+    terrainSharpness:
+      biome === 'rocky'
+        ? 0.5 + planetRandom() * 0.4
+        : biome === 'desert'
+          ? 0.28 + planetRandom() * 0.22
+          : biome === 'ice'
+            ? 0.22 + planetRandom() * 0.18
+            : biome === 'lava'
+              ? 0.42 + planetRandom() * 0.24
+              : biome === 'gas'
+                ? 0.08 + planetRandom() * 0.12
+                : 0.24 + planetRandom() * 0.2,
     textureScale:
+      commonTextureScale,
+    variant,
+    warpAmount:
       biome === 'gas'
-        ? 1.8 + planetRandom() * 1.8
-        : biome === 'lava'
-          ? 2.6 + planetRandom() * 1.8
-          : 2.2 + planetRandom() * 2.4,
+        ? 0.3 + planetRandom() * 0.45
+        : biome === 'desert'
+          ? 0.08 + planetRandom() * 0.18
+          : biome === 'lush'
+            ? 0.16 + planetRandom() * 0.2
+            : biome === 'lava'
+              ? 0.18 + planetRandom() * 0.26
+              : 0.1 + planetRandom() * 0.18,
+  };
+}
+
+function createPlanetRingStyle(
+  biome: PlanetBiome,
+  ringOptions: readonly [string, string][] | undefined,
+  planetRandom: () => number,
+): PlanetRingStyle | null {
+  const ringChance =
+    biome === 'gas'
+      ? 0.34
+      : biome === 'ice'
+        ? 0.12
+        : biome === 'desert'
+          ? 0.05
+          : biome === 'rocky'
+            ? 0.03
+            : 0;
+
+  if (ringOptions === undefined || planetRandom() > ringChance) {
+    return null;
+  }
+
+  const [color, detailColor] = ringOptions[Math.floor(planetRandom() * ringOptions.length)] ?? ringOptions[0];
+
+  return {
+    color,
+    detailColor,
+    innerRadiusScale: 1.35 + planetRandom() * 0.2,
+    opacity: 0.18 + planetRandom() * 0.12,
+    outerRadiusScale: 1.95 + planetRandom() * 0.55,
+    tiltRadians: (planetRandom() - 0.5) * 0.9,
   };
 }
 

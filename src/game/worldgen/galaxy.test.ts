@@ -29,6 +29,26 @@ describe('generateSectorDescriptor', () => {
       expect(planet.surface.detailColor).toMatch(/^#/);
       expect(planet.surface.biome).toMatch(/rocky|desert|lush|ice|lava|gas/);
       expect(planet.surface.textureScale).toBeGreaterThan(0);
+      expect(planet.surface.cloudDensity).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.cloudDensity).toBeLessThanOrEqual(1);
+      expect(planet.surface.atmosphereOpacity).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.atmosphereOpacity).toBeLessThanOrEqual(1);
+      expect(planet.surface.atmosphereScale).toBeGreaterThan(1);
+      expect(planet.surface.craterDensity).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.craterDensity).toBeLessThanOrEqual(1);
+      expect(planet.surface.specularStrength).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.specularStrength).toBeLessThanOrEqual(1);
+      expect(planet.surface.terrainSharpness).toBeGreaterThan(0);
+      expect(planet.surface.variant).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.variant).toBeLessThanOrEqual(2);
+      expect(planet.surface.warpAmount).toBeGreaterThanOrEqual(0);
+      expect(planet.surface.warpAmount).toBeLessThanOrEqual(1);
+
+      if (planet.surface.ring !== null) {
+        expect(planet.surface.ring.color).toMatch(/^#/);
+        expect(planet.surface.ring.detailColor).toMatch(/^#/);
+        expect(planet.surface.ring.outerRadiusScale).toBeGreaterThan(planet.surface.ring.innerRadiusScale);
+      }
     }
   });
 });

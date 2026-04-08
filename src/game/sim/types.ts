@@ -31,17 +31,38 @@ export interface PlanetDescriptor {
 
 export type PlanetBiome = 'rocky' | 'desert' | 'lush' | 'ice' | 'lava' | 'gas';
 
+export interface PlanetRingStyle {
+  color: string;
+  detailColor: string;
+  innerRadiusScale: number;
+  opacity: number;
+  outerRadiusScale: number;
+  tiltRadians: number;
+}
+
 export interface PlanetSurfaceStyle {
+  atmosphereColor: string | null;
+  atmosphereOpacity: number;
+  atmosphereScale: number;
   banding: number;
   biome: PlanetBiome;
+  cloudColor: string | null;
+  cloudDensity: number;
+  craterDensity: number;
   detailColor: string;
   emissiveColor: string | null;
+  oceanLevel: number;
   polarCapAmount: number;
   primaryColor: string;
-  roughness: number;
+  ring: PlanetRingStyle | null;
+   roughness: number;
   secondaryColor: string;
   seed: number;
+  specularStrength: number;
+  terrainSharpness: number;
   textureScale: number;
+  variant: number;
+  warpAmount: number;
 }
 
 export interface SectorDescriptor {

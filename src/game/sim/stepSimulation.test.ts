@@ -6,16 +6,28 @@ import { stepSimulation } from '@/game/sim/stepSimulation';
 import type { GameSnapshot, InputState } from '@/game/sim/types';
 
 const testPlanetSurface = {
+  atmosphereColor: null,
+  atmosphereOpacity: 0,
+  atmosphereScale: 1.04,
   banding: 0.15,
   biome: 'rocky' as const,
+  cloudColor: null,
+  cloudDensity: 0,
+  craterDensity: 0.4,
   detailColor: '#d1c6b1',
   emissiveColor: null,
+  oceanLevel: 0,
   polarCapAmount: 0,
   primaryColor: '#7d8d9f',
+  ring: null,
   roughness: 0.92,
   secondaryColor: '#495566',
   seed: 1234,
+  specularStrength: 0.08,
+  terrainSharpness: 0.55,
   textureScale: 2.5,
+  variant: 1,
+  warpAmount: 0.18,
 };
 
 function createSnapshotWithPlanet(): GameSnapshot {
