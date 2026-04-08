@@ -1,5 +1,6 @@
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 import { getSystemLabel } from '@/game/worldgen/navigation';
+import { combatTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
 
 function formatSector(x: number, y: number, z: number): string {
@@ -46,6 +47,7 @@ export function GameHud(): ReactElement {
   const aimDownSights = useGameStore((state) => state.input.aimDownSights);
   const elapsedSeconds = useGameStore((state) => state.snapshot.elapsedSeconds);
   const activeSector = useGameStore((state) => state.snapshot.activeSector);
+  const ship = useGameStore((state) => state.snapshot.ship);
   const shipResources = useGameStore((state) => state.snapshot.ship.resources);
   const shipVelocity = useGameStore((state) => state.snapshot.ship.velocity);
   const snapshot = useGameStore((state) => state.snapshot);
@@ -57,6 +59,21 @@ export function GameHud(): ReactElement {
   const boostPct = shipResources.boostEnergyMax > 0 ? (shipResources.boostEnergy / shipResources.boostEnergyMax) * 100 : 0;
   const targetSystem = snapshot.travel.targetSystem;
   const targetLabel = targetSystem === null ? 'No route armed' : getSystemLabel(snapshot.universeSeed, targetSystem);
+  const secondaryChargePct = Math.min(
+    ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds,
+    1,
+  );
+  const reticleStyle = {
+    '--reticle-charge': secondaryChargePct,
+  } as CSSProperties;
+  const reticleClassName = [
+    'reticle',
+    aimDownSights ? 'reticle--ads' : null,
+    ship.secondaryChargeSeconds > 0 ? 'reticle--charging' : null,
+    ship.secondaryCooldownSeconds > 0 ? 'reticle--cooldown' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <>
@@ -109,7 +126,13 @@ export function GameHud(): ReactElement {
           </div>
         </div>
       </section>
-      <div className={aimDownSights ? 'reticle reticle--ads' : 'reticle'} aria-hidden="true" />
+      <div className={reticleClassName} style={reticleStyle} aria-hidden="true">
+        <div className="reticle__ring" />
+        <div className="reticle__dot" />
+        <div className="reticle__bar reticle__bar--left" />
+        <div className="reticle__bar reticle__bar--right" />
+        <div className="reticle__charge" />
+      </div>
     </>
   );
 }

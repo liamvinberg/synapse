@@ -1,10 +1,47 @@
 import type { ReactElement } from 'react';
 import { Stars } from '@react-three/drei';
+import { Quaternion, Vector3 } from 'three';
 import { CameraRig } from '@/game/render/CameraRig';
 import { PlanetBody } from '@/game/render/PlanetBody';
 import { ShipMesh } from '@/game/render/ShipMesh';
 import { useInterpolatedShipState } from '@/game/render/useInterpolatedShipState';
+import { combatTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
+
+const UP_AXIS = new Vector3(0, 1, 0);
+
+function ProjectileTrace({
+  color,
+  glowColor,
+  length,
+  position,
+  radius,
+  velocity,
+}: {
+  color: string;
+  glowColor: string;
+  length: number;
+  position: [number, number, number];
+  radius: number;
+  velocity: [number, number, number];
+}): ReactElement {
+  const direction = new Vector3(...velocity).normalize();
+  const quaternion = new Quaternion().setFromUnitVectors(UP_AXIS, direction);
+  const center = new Vector3(...position).addScaledVector(direction, -length * 0.45);
+
+  return (
+    <group position={center.toArray()} quaternion={quaternion}>
+      <mesh>
+        <cylinderGeometry args={[radius * 1.8, radius * 1.8, length, 10]} />
+        <meshBasicMaterial color={glowColor} transparent opacity={0.16} />
+      </mesh>
+      <mesh>
+        <cylinderGeometry args={[radius, radius, length, 10]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+    </group>
+  );
+}
 
 function PlanetBodies(): ReactElement {
   const planets = useGameStore((state) => state.snapshot.activeSectorDescriptor.planets);
@@ -24,13 +61,19 @@ function ProjectileBodies(): ReactElement {
   return (
     <>
       {projectiles.map((projectile) => (
-        <mesh
+        <ProjectileTrace
           key={projectile.id}
+          color={projectile.color}
+          glowColor={
+            projectile.kind === 'secondary'
+              ? combatTuning.secondaryProjectileGlowColor
+              : combatTuning.projectileGlowColor
+          }
+          length={projectile.length}
           position={[projectile.position.x, projectile.position.y, projectile.position.z]}
-        >
-          <sphereGeometry args={[projectile.radius, 12, 12]} />
-          <meshBasicMaterial color="#b8d7ff" />
-        </mesh>
+          radius={projectile.radius}
+          velocity={[projectile.velocity.x, projectile.velocity.y, projectile.velocity.z]}
+        />
       ))}
     </>
   );

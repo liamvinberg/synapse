@@ -124,7 +124,11 @@ function wrapPositionToSector(
 function stepShipTimers(ship: ShipState, deltaSeconds: number): ShipState {
   return {
     ...ship,
+    cameraShakeSeconds: Math.max(0, ship.cameraShakeSeconds - deltaSeconds),
+    cameraShakeStrength:
+      ship.cameraShakeSeconds - deltaSeconds > 0 ? ship.cameraShakeStrength : 0,
     collisionCooldownSeconds: Math.max(0, ship.collisionCooldownSeconds - deltaSeconds),
+    secondaryCooldownSeconds: Math.max(0, ship.secondaryCooldownSeconds - deltaSeconds),
     weaponCooldownSeconds: Math.max(0, ship.weaponCooldownSeconds - deltaSeconds),
   };
 }
@@ -231,18 +235,44 @@ function getAimTargetPoint(
   return addVec3(cameraOrigin, scaleVec3(cameraPose.forward, bestDistance));
 }
 
-function createImpact(
-  position: Vec3,
-  impactId: number,
-): ImpactState {
+function createImpact(position: Vec3, impactId: number, color: string, radius: number): ImpactState {
   return {
-    color: combatTuning.impactColor,
+    color,
     id: `impact-${impactId}`,
     maxTtlSeconds: combatTuning.impactTtlSeconds,
     position,
-    radius: combatTuning.impactRadius,
+    radius,
     ttlSeconds: combatTuning.impactTtlSeconds,
   };
+}
+
+function applyWeaponFeedback(
+  ship: ShipState,
+  direction: Vec3,
+  recoilImpulse: number,
+  shakeStrength: number,
+  shakeSeconds: number,
+): ShipState {
+  return {
+    ...ship,
+    cameraShakeSeconds: Math.max(ship.cameraShakeSeconds, shakeSeconds),
+    cameraShakeStrength: Math.max(ship.cameraShakeStrength, shakeStrength),
+    velocity: addVec3(ship.velocity, scaleVec3(direction, -recoilImpulse)),
+  };
+}
+
+type SecondaryChargeTier = 'partial' | 'mid' | 'full';
+
+function getSecondaryChargeTier(chargeSeconds: number): SecondaryChargeTier {
+  if (chargeSeconds >= combatTuning.secondaryChargeFullSeconds) {
+    return 'full';
+  }
+
+  if (chargeSeconds >= combatTuning.secondaryChargeMidSeconds) {
+    return 'mid';
+  }
+
+  return 'partial';
 }
 
 function createProjectile(
@@ -258,12 +288,50 @@ function createProjectile(
   const projectileDirection = normalizeVec3(subtractVec3(aimTarget, projectileOrigin));
 
   return {
+    color: combatTuning.projectileColor,
     damage: combatTuning.projectileDamage,
     id: `projectile-${projectileId}`,
+    impactRadius: combatTuning.impactRadius,
+    kind: 'primary',
+    length: combatTuning.projectileLength,
     position: projectileOrigin,
     radius: combatTuning.projectileRadius,
     ttlSeconds: combatTuning.projectileTtlSeconds,
     velocity: scaleVec3(projectileDirection, combatTuning.projectileSpeed),
+  };
+}
+
+function createSecondaryProjectile(
+  ship: ShipState,
+  aimTarget: Vec3,
+  projectileId: number,
+  chargeTier: SecondaryChargeTier,
+): ProjectileState {
+  const shipForward = getForwardVector(ship.yawRadians, ship.pitchRadians);
+  const projectileOrigin = addVec3(
+    ship.position,
+    scaleVec3(shipForward, combatTuning.projectileSpawnOffset + 0.4),
+  );
+  const projectileDirection = normalizeVec3(subtractVec3(aimTarget, projectileOrigin));
+  const hullMultiplier = combatTuning.secondaryProjectileHullMultiplier[chargeTier];
+  const shieldMultiplier = combatTuning.secondaryProjectileShieldMultiplier[chargeTier];
+  const stagger = combatTuning.secondaryProjectileStagger[chargeTier];
+
+  return {
+    color: combatTuning.secondaryProjectileColor,
+    damage: {
+      amount: combatTuning.projectileDamage.amount * hullMultiplier,
+      shieldMultiplier,
+      stagger,
+    },
+    id: `secondary-projectile-${projectileId}`,
+    impactRadius: combatTuning.secondaryProjectileImpactRadius[chargeTier],
+    kind: 'secondary',
+    length: combatTuning.secondaryProjectileLengths[chargeTier],
+    position: projectileOrigin,
+    radius: combatTuning.secondaryProjectileRadius,
+    ttlSeconds: combatTuning.secondaryProjectileTtlSeconds,
+    velocity: scaleVec3(projectileDirection, combatTuning.secondaryProjectileSpeed),
   };
 }
 
@@ -303,7 +371,14 @@ function stepProjectiles(
     }
 
     if (hitPoint !== null) {
-      impacts.push(createImpact(hitPoint, impactId));
+      impacts.push(
+        createImpact(
+          hitPoint,
+          impactId,
+          projectile.kind === 'secondary' ? combatTuning.secondaryProjectileGlowColor : combatTuning.impactColor,
+          projectile.impactRadius,
+        ),
+      );
       impactId += 1;
       continue;
     }
@@ -448,26 +523,86 @@ export function stepSimulation(
   };
   const adsBlend = input.aimDownSights ? 1 : 0;
   const aimTarget = getAimTargetPoint(shipAfterMovement, activeSectorDescriptor.planets, adsBlend);
-  const shouldFire = input.fire && shipAfterMovement.weaponCooldownSeconds <= 0;
+  const isChargingSecondary =
+    input.aimDownSights &&
+    !input.boost &&
+    input.fire &&
+    shipAfterMovement.secondaryCooldownSeconds <= 0;
+  const nextSecondaryChargeSeconds = isChargingSecondary
+    ? snapshot.ship.secondaryChargeSeconds + deltaSeconds
+    : 0;
+  const didReleaseSecondaryTrigger =
+    snapshot.ship.secondaryChargeSeconds > 0 &&
+    !input.fire &&
+    input.aimDownSights &&
+    shipAfterMovement.secondaryCooldownSeconds <= 0;
+  const didCancelSecondaryMode =
+    snapshot.ship.secondaryChargeSeconds > 0 &&
+    !input.aimDownSights;
+  const shouldFireSecondary =
+    didReleaseSecondaryTrigger &&
+    snapshot.ship.secondaryChargeSeconds >= combatTuning.secondaryChargeMinSeconds;
+  const secondaryChargeTier = getSecondaryChargeTier(snapshot.ship.secondaryChargeSeconds);
+  const shouldFirePrimary =
+    input.fire &&
+    !input.aimDownSights &&
+    !didCancelSecondaryMode &&
+    shipAfterMovement.weaponCooldownSeconds <= 0;
   const projectileStep = stepProjectiles(
     snapshot.projectiles,
     snapshot.nextImpactId,
     activeSectorDescriptor.planets,
     deltaSeconds,
   );
-  const projectilesWithSpawn = shouldFire
-    ? [
-        ...projectileStep.projectiles,
-        createProjectile(shipAfterMovement, aimTarget, snapshot.nextProjectileId),
-      ]
-    : projectileStep.projectiles;
+  const primaryProjectile = shouldFirePrimary
+    ? createProjectile(shipAfterMovement, aimTarget, snapshot.nextProjectileId)
+    : null;
+  const secondaryProjectile = shouldFireSecondary
+    ? createSecondaryProjectile(
+        shipAfterMovement,
+        aimTarget,
+        snapshot.nextProjectileId + (primaryProjectile === null ? 0 : 1),
+        secondaryChargeTier,
+      )
+    : null;
+  const projectilesWithSpawn = [
+    ...projectileStep.projectiles,
+    ...(primaryProjectile === null ? [] : [primaryProjectile]),
+    ...(secondaryProjectile === null ? [] : [secondaryProjectile]),
+  ];
+  let shipWithWeaponFeedback = shipAfterMovement;
+
+  if (primaryProjectile !== null) {
+    shipWithWeaponFeedback = applyWeaponFeedback(
+      shipWithWeaponFeedback,
+      normalizeVec3(primaryProjectile.velocity),
+      combatTuning.projectileRecoilImpulse,
+      combatTuning.primaryCameraShakeStrength,
+      combatTuning.primaryCameraShakeSeconds,
+    );
+  }
+
+  if (secondaryProjectile !== null) {
+    shipWithWeaponFeedback = applyWeaponFeedback(
+      shipWithWeaponFeedback,
+      normalizeVec3(secondaryProjectile.velocity),
+      combatTuning.secondaryProjectileRecoilImpulse,
+      combatTuning.secondaryCameraShakeStrength,
+      combatTuning.secondaryCameraShakeSeconds,
+    );
+  }
+
   const resolvedShip = resolveShipPlanetCollisions(
     snapshot.ship.position,
     {
-      ...shipAfterMovement,
-      weaponCooldownSeconds: shouldFire
+      ...shipWithWeaponFeedback,
+      secondaryChargeSeconds: isChargingSecondary ? nextSecondaryChargeSeconds : 0,
+      secondaryCooldownSeconds: shouldFireSecondary
+        ? combatTuning.secondaryCooldownSeconds
+        : shipWithWeaponFeedback.secondaryCooldownSeconds,
+      weaponCooldownSeconds: shouldFirePrimary
         ? combatTuning.fireCooldownSeconds
-        : shipAfterMovement.weaponCooldownSeconds,
+        : shipWithWeaponFeedback.weaponCooldownSeconds,
     },
     activeSectorDescriptor.planets,
   );
@@ -482,7 +617,10 @@ export function stepSimulation(
     aimTarget: resolvedAimTarget,
     impacts: [...steppedImpacts, ...projectileStep.impacts],
     nextImpactId: projectileStep.nextImpactId,
-    nextProjectileId: shouldFire ? snapshot.nextProjectileId + 1 : snapshot.nextProjectileId,
+    nextProjectileId:
+      snapshot.nextProjectileId +
+      (primaryProjectile === null ? 0 : 1) +
+      (secondaryProjectile === null ? 0 : 1),
     projectiles: projectilesWithSpawn,
     ship: {
       ...resolvedShip,

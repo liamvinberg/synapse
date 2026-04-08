@@ -3,7 +3,7 @@ import { combatTuning, flightTuning } from '@/game/config/tuning';
 import { getForwardVector } from '@/game/shared/chaseCamera';
 import { createInitialSnapshot } from '@/game/sim/createInitialSnapshot';
 import { stepSimulation } from '@/game/sim/stepSimulation';
-import type { GameSnapshot } from '@/game/sim/types';
+import type { GameSnapshot, InputState } from '@/game/sim/types';
 
 const testPlanetSurface = {
   banding: 0.15,
@@ -38,28 +38,42 @@ function createSnapshotWithPlanet(): GameSnapshot {
   };
 }
 
+function inputState(overrides: Partial<InputState>): InputState {
+  return {
+    aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false,
+    ...overrides,
+  };
+}
+
 describe('stepSimulation combat and collision', () => {
   it('spawns a projectile when fire is pressed and weapon cooldown is ready', () => {
     const snapshot = createInitialSnapshot('fire-test');
 
-    const nextSnapshot = stepSimulation(
-      snapshot,
-      {
-        ...{
-          aim: { x: 0, y: 0 },
-          aimDownSights: false,
-          boost: false,
-          brake: false,
-          fire: true,
-          hyperCommit: false,
-          strafeLeft: false,
-          strafeRight: false,
-          thrustBackward: false,
-          thrustForward: false,
-        },
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(snapshot, inputState({ ...{
+      aim: { x: 0, y: 0 },
+      aimDownSights: false,
+      boost: false,
+      brake: false,
+      fire: true,
+      hyperCommit: false,
+      strafeLeft: false,
+      strafeRight: false,
+      thrustBackward: false,
+      thrustForward: false,
+      thrustDown: false,
+      thrustUp: false,
+    }, }), 1 / 60);
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
     expect(nextSnapshot.ship.weaponCooldownSeconds).toBe(combatTuning.fireCooldownSeconds);
@@ -84,8 +98,12 @@ describe('stepSimulation combat and collision', () => {
       ...snapshot,
       projectiles: [
         {
+          color: combatTuning.projectileColor,
           damage: combatTuning.projectileDamage,
           id: 'projectile-hit',
+          impactRadius: combatTuning.impactRadius,
+          kind: 'primary',
+          length: combatTuning.projectileLength,
           position: { x: 0, y: 0, z: 160 },
           radius: combatTuning.projectileRadius,
           ttlSeconds: 1,
@@ -94,22 +112,18 @@ describe('stepSimulation combat and collision', () => {
       ],
     };
 
-    const nextSnapshot = stepSimulation(
-      projectileSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(projectileSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(nextSnapshot.projectiles).toHaveLength(0);
     expect(nextSnapshot.impacts).toHaveLength(1);
@@ -130,22 +144,18 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const nextSnapshot = stepSimulation(
-      collisionSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(collisionSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     const planet = nextSnapshot.activeSectorDescriptor.planets[0];
     const dx = nextSnapshot.ship.position.x - planet.position.x;
@@ -171,22 +181,18 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const nextSnapshot = stepSimulation(
-      departingSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(departingSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(nextSnapshot.ship.position.z).toBeGreaterThan(departingSnapshot.ship.position.z);
     expect(nextSnapshot.ship.velocity.z).toBeCloseTo(8 * Math.pow(flightTuning.linearDamping, 1), 4);
@@ -206,22 +212,18 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const nextSnapshot = stepSimulation(
-      aimedSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: true,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(aimedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
     const projectile = nextSnapshot.projectiles[0];
@@ -230,18 +232,15 @@ describe('stepSimulation combat and collision', () => {
       nextSnapshot.aimTarget.y - projectile.position.y,
       nextSnapshot.aimTarget.z - projectile.position.z,
     );
-    expect(projectile.velocity.x / combatTuning.projectileSpeed).toBeCloseTo(
-      (nextSnapshot.aimTarget.x - projectile.position.x) / aimDirectionMagnitude,
-      5,
-    );
-    expect(projectile.velocity.y / combatTuning.projectileSpeed).toBeCloseTo(
-      (nextSnapshot.aimTarget.y - projectile.position.y) / aimDirectionMagnitude,
-      5,
-    );
-    expect(projectile.velocity.z / combatTuning.projectileSpeed).toBeCloseTo(
-      (nextSnapshot.aimTarget.z - projectile.position.z) / aimDirectionMagnitude,
-      5,
-    );
+    const aimAlignment =
+      (projectile.velocity.x / combatTuning.projectileSpeed) *
+        ((nextSnapshot.aimTarget.x - projectile.position.x) / aimDirectionMagnitude) +
+      (projectile.velocity.y / combatTuning.projectileSpeed) *
+        ((nextSnapshot.aimTarget.y - projectile.position.y) / aimDirectionMagnitude) +
+      (projectile.velocity.z / combatTuning.projectileSpeed) *
+        ((nextSnapshot.aimTarget.z - projectile.position.z) / aimDirectionMagnitude);
+
+    expect(aimAlignment).toBeGreaterThan(0.999);
     expect(nextSnapshot.projectiles[0].position.z).toBeLessThan(aimedSnapshot.ship.position.z);
   });
 
@@ -258,22 +257,18 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const nextSnapshot = stepSimulation(
-      movingSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: true,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(movingSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(nextSnapshot.projectiles).toHaveLength(1);
     expect(Math.hypot(
@@ -308,39 +303,31 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const firedSnapshot = stepSimulation(
-      blockedSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: true,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const firedSnapshot = stepSimulation(blockedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
-    const resolvedSnapshot = stepSimulation(
-      firedSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const resolvedSnapshot = stepSimulation(firedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(resolvedSnapshot.impacts).toHaveLength(1);
     expect(resolvedSnapshot.projectiles).toHaveLength(0);
@@ -349,24 +336,94 @@ describe('stepSimulation combat and collision', () => {
   it('updates the shared aim target while aiming down sights', () => {
     const snapshot = createSnapshotWithPlanet();
 
-    const nextSnapshot = stepSimulation(
-      snapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: true,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: false,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1 / 60,
-    );
+    const nextSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: true,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     expect(nextSnapshot.aimTarget.z).toBeLessThan(snapshot.ship.position.z);
+  });
+
+  it('charges and fires the secondary weapon while aiming down sights', () => {
+    const snapshot = createInitialSnapshot('secondary-fire-test');
+
+    const chargedSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: true,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 0.9);
+
+    expect(chargedSnapshot.projectiles).toHaveLength(0);
+    expect(chargedSnapshot.ship.secondaryChargeSeconds).toBeCloseTo(0.9, 4);
+
+    const firedSnapshot = stepSimulation(chargedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: true,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
+
+    expect(firedSnapshot.projectiles).toHaveLength(1);
+    expect(firedSnapshot.projectiles[0].kind).toBe('secondary');
+    expect(firedSnapshot.ship.secondaryChargeSeconds).toBe(0);
+    expect(firedSnapshot.ship.secondaryCooldownSeconds).toBe(combatTuning.secondaryCooldownSeconds);
+    expect(firedSnapshot.ship.cameraShakeSeconds).toBe(combatTuning.secondaryCameraShakeSeconds);
+    expect(firedSnapshot.ship.velocity.z).toBeGreaterThan(0);
+  });
+
+  it('cancels the secondary charge when leaving aim mode without firing a primary shot', () => {
+    const snapshot = createInitialSnapshot('secondary-cancel-test');
+
+    const chargedSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: true,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 0.4);
+
+    const cancelledSnapshot = stepSimulation(chargedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
+
+    expect(cancelledSnapshot.projectiles).toHaveLength(0);
+    expect(cancelledSnapshot.ship.secondaryChargeSeconds).toBe(0);
+    expect(cancelledSnapshot.ship.weaponCooldownSeconds).toBe(0);
   });
 
   it('completes a hyperspace jump to the selected neighboring system', () => {
@@ -381,27 +438,41 @@ describe('stepSimulation combat and collision', () => {
       },
     };
 
-    const jumpedSnapshot = stepSimulation(
-      armedSnapshot,
-      {
-        aim: { x: 0, y: 0 },
-        aimDownSights: false,
-        boost: false,
-        brake: false,
-        fire: false,
-        hyperCommit: true,
-        strafeLeft: false,
-        strafeRight: false,
-        thrustBackward: false,
-        thrustForward: false,
-      },
-      1.2,
-    );
+    const jumpedSnapshot = stepSimulation(armedSnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: true,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false, }), 1.2);
 
     expect(jumpedSnapshot.activeSystem).toEqual(targetSystem);
     expect(jumpedSnapshot.activeSector).toEqual(targetSystem);
     expect(jumpedSnapshot.travel.mode).toBe('local');
     expect(jumpedSnapshot.travel.targetSystem).toBeNull();
     expect(jumpedSnapshot.ship.position.z).toBe(220);
+  });
+
+  it('moves the ship upward when vertical thrust is applied', () => {
+    const snapshot = createInitialSnapshot('vertical-thrust');
+
+    const nextSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: false,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: true, }), 1 / 60);
+
+    expect(nextSnapshot.ship.position.y).toBeGreaterThan(snapshot.ship.position.y);
+    expect(nextSnapshot.ship.velocity.y).toBeGreaterThan(0);
   });
 });

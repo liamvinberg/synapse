@@ -14,6 +14,8 @@ const neutralInput = {
   strafeRight: false,
   thrustBackward: false,
   thrustForward: false,
+  thrustDown: false,
+  thrustUp: false,
 };
 
 describe('stepShipController', () => {
@@ -94,5 +96,31 @@ describe('stepShipController', () => {
     expect(Math.abs(forwardBoost.velocity.z)).toBeGreaterThan(Math.abs(strafeBoost.velocity.x));
     expect(Math.abs(strafeBoost.velocity.x)).toBeLessThan(flightTuning.strafeThrust);
     expect(Math.abs(reverseBoost.velocity.z)).toBeLessThan(flightTuning.reverseThrust);
+  });
+
+  it('supports vertical thrust with the same lighter boost treatment as other lateral axes', () => {
+    const ship = createInitialSnapshot('controller-vertical').ship;
+
+    const upward = stepShipController(
+      ship,
+      {
+        ...neutralInput,
+        thrustUp: true,
+      },
+      1,
+    );
+    const boostedUpward = stepShipController(
+      ship,
+      {
+        ...neutralInput,
+        boost: true,
+        thrustUp: true,
+      },
+      1,
+    );
+
+    expect(upward.velocity.y).toBeGreaterThan(0);
+    expect(boostedUpward.velocity.y).toBeGreaterThan(0);
+    expect(boostedUpward.velocity.y).toBeLessThan(flightTuning.verticalThrust);
   });
 });

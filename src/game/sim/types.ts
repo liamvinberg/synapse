@@ -54,19 +54,27 @@ export interface SectorDescriptor {
 
 export interface ShipState {
   bankRadians: number;
+  cameraShakeSeconds: number;
+  cameraShakeStrength: number;
   collisionCooldownSeconds: number;
   controlMode: 'action-chase';
   pitchRadians: number;
   position: Vec3;
   resources: ShipResources;
+  secondaryChargeSeconds: number;
+  secondaryCooldownSeconds: number;
   velocity: Vec3;
   weaponCooldownSeconds: number;
   yawRadians: number;
 }
 
 export interface ProjectileState {
+  color: string;
   damage: DamagePacket;
   id: string;
+  impactRadius: number;
+  kind: 'primary' | 'secondary';
+  length: number;
   position: Vec3;
   radius: number;
   ttlSeconds: number;
@@ -123,6 +131,8 @@ export interface InputState {
   strafeRight: boolean;
   thrustBackward: boolean;
   thrustForward: boolean;
+  thrustDown: boolean;
+  thrustUp: boolean;
 }
 
 export interface DamagePacket {

@@ -30,6 +30,14 @@ function getRightVector(yawRadians: number): Vec3 {
   };
 }
 
+function getUpVector(forwardVector: Vec3, rightVector: Vec3): Vec3 {
+  return {
+    x: forwardVector.y * rightVector.z - forwardVector.z * rightVector.y,
+    y: forwardVector.z * rightVector.x - forwardVector.x * rightVector.z,
+    z: forwardVector.x * rightVector.y - forwardVector.y * rightVector.x,
+  };
+}
+
 function applyLinearDamping(
   velocity: Vec3,
   deltaSeconds: number,
@@ -53,6 +61,7 @@ export function stepShipController(
   const forwardInput = Number(input.thrustForward);
   const reverseInput = Number(input.thrustBackward);
   const strafeInput = Number(input.strafeRight) - Number(input.strafeLeft);
+  const verticalInput = Number(input.thrustUp) - Number(input.thrustDown);
   const strafePower = strafeInput * profile.strafeThrust;
   const yawRadians = ship.yawRadians + input.aim.x * profile.cursorYawRate * deltaSeconds;
   const pitchRadians = clamp(
@@ -71,38 +80,49 @@ export function stepShipController(
   const bankRadians = approach(ship.bankRadians, targetBankRadians, bankSmoothing);
   const forwardVector = getForwardVector(yawRadians, pitchRadians);
   const rightVector = getRightVector(yawRadians);
+  const upVector = getUpVector(forwardVector, rightVector);
   const boostMultiplier = boostActive ? profile.boostMultiplier : 1;
   const forwardThrust = forwardInput * profile.thrustForward * boostMultiplier;
   const reverseThrust = reverseInput * profile.reverseThrust;
   const strafeThrust = strafePower * (boostActive ? profile.boostStrafeFactor : 1);
+  const verticalThrust = verticalInput * profile.verticalThrust * (boostActive ? profile.boostStrafeFactor : 1);
   let velocity = addVec3(
     applyLinearDamping(ship.velocity, deltaSeconds, profile.linearDamping),
     addVec3(
-      scaleVec3(forwardVector, (forwardThrust - reverseThrust) * deltaSeconds),
-      scaleVec3(rightVector, strafeThrust * deltaSeconds),
+      addVec3(
+        scaleVec3(forwardVector, (forwardThrust - reverseThrust) * deltaSeconds),
+        scaleVec3(rightVector, strafeThrust * deltaSeconds),
+      ),
+      scaleVec3(upVector, verticalThrust * deltaSeconds),
     ),
   );
 
   if (boostActive) {
     const forwardSpeed = dotVec3(velocity, forwardVector);
     const rightSpeed = dotVec3(velocity, rightVector);
+    const upSpeed = dotVec3(velocity, upVector);
     const forwardComponent = scaleVec3(forwardVector, forwardSpeed);
     const rightComponent = scaleVec3(rightVector, rightSpeed);
+    const upComponent = scaleVec3(upVector, upSpeed);
     const residualVelocity = {
-      x: velocity.x - forwardComponent.x - rightComponent.x,
-      y: velocity.y - forwardComponent.y - rightComponent.y,
-      z: velocity.z - forwardComponent.z - rightComponent.z,
+      x: velocity.x - forwardComponent.x - rightComponent.x - upComponent.x,
+      y: velocity.y - forwardComponent.y - rightComponent.y - upComponent.y,
+      z: velocity.z - forwardComponent.z - rightComponent.z - upComponent.z,
     };
     const reverseDamping = Math.exp(-profile.boostReverseDamping * deltaSeconds);
     const strafeDamping = Math.exp(-profile.boostStrafeDamping * deltaSeconds);
     const boostedForwardSpeed = forwardSpeed >= 0 ? forwardSpeed : forwardSpeed * reverseDamping;
     const boostedRightSpeed = rightSpeed * strafeDamping;
+    const boostedUpSpeed = upSpeed * strafeDamping;
 
     velocity = addVec3(
       residualVelocity,
       addVec3(
-        scaleVec3(forwardVector, boostedForwardSpeed),
-        scaleVec3(rightVector, boostedRightSpeed),
+        addVec3(
+          scaleVec3(forwardVector, boostedForwardSpeed),
+          scaleVec3(rightVector, boostedRightSpeed),
+        ),
+        scaleVec3(upVector, boostedUpSpeed),
       ),
     );
   }

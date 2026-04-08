@@ -258,46 +258,98 @@ button {
 }
 
 .reticle {
+  --reticle-charge: 0;
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 6px;
-  margin-left: -3px;
-  margin-top: -3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
+  width: 74px;
+  height: 74px;
+  margin-left: -37px;
+  margin-top: -37px;
+  pointer-events: none;
+  transition: transform 160ms ease, opacity 160ms ease;
 }
 
-.reticle::before,
-.reticle::after {
-  content: '';
+.reticle__ring,
+.reticle__dot,
+.reticle__bar,
+.reticle__charge {
   position: absolute;
+  left: 50%;
   top: 50%;
-  width: 20px;
+  transform: translate(-50%, -50%);
+}
+
+.reticle__ring {
+  width: calc(26px - var(--reticle-charge) * 6px);
+  height: calc(26px - var(--reticle-charge) * 6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  box-shadow: 0 0 18px rgba(114, 170, 255, 0.08);
+  transition: width 120ms ease, height 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.reticle__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(245, 249, 255, 0.78);
+  box-shadow: 0 0 10px rgba(132, 188, 255, 0.25);
+}
+
+.reticle__bar {
+  width: calc(16px + var(--reticle-charge) * 10px);
   height: 1px;
-  margin-top: -0.5px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.22);
+  transition: width 120ms ease, background 120ms ease, opacity 120ms ease;
 }
 
-.reticle::before {
-  right: 100%;
-  margin-right: 7px;
+.reticle__bar--left {
+  transform: translate(calc(-100% - 8px - var(--reticle-charge) * 4px), -50%);
 }
 
-.reticle::after {
-  left: 100%;
-  margin-left: 7px;
+.reticle__bar--right {
+  transform: translate(calc(8px + var(--reticle-charge) * 4px), -50%);
+}
+
+.reticle__charge {
+  width: calc(34px + var(--reticle-charge) * 12px);
+  height: calc(34px + var(--reticle-charge) * 12px);
+  border-radius: 999px;
+  border: 1px solid rgba(118, 184, 255, calc(0.08 + var(--reticle-charge) * 0.34));
+  box-shadow: 0 0 22px rgba(118, 184, 255, calc(0.04 + var(--reticle-charge) * 0.18));
+  opacity: calc(0.3 + var(--reticle-charge) * 0.7);
+  transition: width 120ms ease, height 120ms ease, opacity 120ms ease, border-color 120ms ease;
 }
 
 .reticle--ads {
-  background: rgba(255, 255, 255, 0.68);
+  transform: scale(0.92);
 }
 
-.reticle--ads::before,
-.reticle--ads::after {
+.reticle--ads .reticle__ring {
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
+.reticle--ads .reticle__bar {
   background: rgba(255, 255, 255, 0.34);
-  width: 38px;
+}
+
+.reticle--ads .reticle__dot {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.reticle--charging .reticle__ring,
+.reticle--charging .reticle__charge {
+  border-color: rgba(150, 206, 255, 0.54);
+  box-shadow: 0 0 28px rgba(112, 176, 255, 0.24);
+}
+
+.reticle--charging .reticle__dot {
+  box-shadow: 0 0 18px rgba(132, 188, 255, 0.44);
+}
+
+.reticle--cooldown {
+  opacity: 0.82;
 }
 
 .nav-field {

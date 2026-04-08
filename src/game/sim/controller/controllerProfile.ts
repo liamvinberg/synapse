@@ -18,6 +18,7 @@ export interface ControllerProfile {
   reverseThrust: number;
   strafeThrust: number;
   thrustForward: number;
+  verticalThrust: number;
 }
 
 export const actionChaseControllerProfile: ControllerProfile = {
@@ -38,4 +39,5 @@ export const actionChaseControllerProfile: ControllerProfile = {
   reverseThrust: flightTuning.reverseThrust,
   strafeThrust: flightTuning.strafeThrust,
   thrustForward: flightTuning.thrustForward,
+  verticalThrust: flightTuning.verticalThrust,
 };

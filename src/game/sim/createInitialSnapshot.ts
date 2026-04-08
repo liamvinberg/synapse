@@ -34,6 +34,8 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
     projectiles: [],
     ship: {
       bankRadians: 0,
+      cameraShakeSeconds: 0,
+      cameraShakeStrength: 0,
       collisionCooldownSeconds: 0,
       controlMode: 'action-chase',
       pitchRadians: initialPitchRadians,
@@ -52,6 +54,8 @@ export function createInitialSnapshot(universeSeed: string): GameSnapshot {
         staggerMax: 100,
         staggerRecoveryPerSecond: 18,
       },
+      secondaryChargeSeconds: 0,
+      secondaryCooldownSeconds: 0,
       velocity: { x: 0, y: 0, z: 0 },
       weaponCooldownSeconds: 0,
       yawRadians: initialYawRadians,

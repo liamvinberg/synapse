@@ -13,6 +13,8 @@ const initialInputState: InputState = {
   strafeRight: false,
   thrustBackward: false,
   thrustForward: false,
+  thrustDown: false,
+  thrustUp: false,
 };
 
 export interface GameStore {
