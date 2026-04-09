@@ -1,4 +1,4 @@
-const assetModules = import.meta.glob('./assets/*.ogg', {
+const assetModules = import.meta.glob('./assets/*.{ogg,wav}', {
   eager: true,
   import: 'default',
 }) as Record<string, string>;
@@ -10,7 +10,7 @@ function getAssetName(path: string): string {
     throw new Error(`Invalid audio asset path: ${path}`);
   }
 
-  return fileName.replace(/\.ogg$/u, '');
+  return fileName.replace(/\.(ogg|wav)$/u, '');
 }
 
 function getAssetPrefix(name: string): string {
@@ -38,17 +38,21 @@ function requireGroup(prefix: string): readonly string[] {
 }
 
 export const audioAssets = {
+  boostThruster: requireGroup('boostThruster'),
   computerNoise: requireGroup('computerNoise'),
   doorClose: requireGroup('doorClose'),
   doorOpen: requireGroup('doorOpen'),
+  engineAmbience: requireGroup('engineAmbience'),
   engineCircular: requireGroup('engineCircular'),
   explosionCrunch: requireGroup('explosionCrunch'),
   forceField: requireGroup('forceField'),
+  hullImpact: requireGroup('hullImpact'),
   impactMetal: requireGroup('impactMetal'),
   laserLarge: requireGroup('laserLarge'),
   laserRetro: requireGroup('laserRetro'),
   laserSmall: requireGroup('laserSmall'),
   lowFrequencyExplosion: requireGroup('lowFrequency_explosion'),
+  planetImpact: requireGroup('planetImpact'),
   spaceEngine: requireGroup('spaceEngine'),
   spaceEngineLarge: requireGroup('spaceEngineLarge'),
   spaceEngineLow: requireGroup('spaceEngineLow'),
