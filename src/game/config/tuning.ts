@@ -63,16 +63,21 @@ export const motionFeedbackTuning = {
 } as const;
 
 export const audioTuning = {
+  beamImpactVolume: 0.16,
+  chargeLoopVolume: 0.14,
+  chargeStartVolume: 0.13,
   boostLoopVolume: 0.28,
   engineBasePlaybackRate: 0.84,
   engineBaseVolume: 0.16,
   enginePlaybackRange: 0.34,
+  primaryWeaponVolume: 0.27,
   explosionVolume: 0.34,
   impactVolume: 0.24,
   loopSmoothing: 0.18,
   masterVolume: 0.42,
   navigationDuck: 0.62,
   enemyWeaponVolume: 0.18,
+  secondaryWeaponVolume: 0.24,
   speedForMaxMix: 72,
   spoolLoopVolume: 0.26,
   telegraphCooldownMs: 425,

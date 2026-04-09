@@ -4,20 +4,21 @@ import type { CombatEventState, ProjectileState, SectorCoordinate } from '@/game
 import type { GameStore } from '@/game/state/gameStore';
 import { useGameStore } from '@/game/state/gameStore';
 
-type LoopChannelName = 'boost' | 'engine' | 'spool' | 'thruster';
+type LoopChannelName = 'boost' | 'charge' | 'engine' | 'spool' | 'thruster';
 
 interface LoopChannel {
   element: HTMLAudioElement | null;
   variants: readonly string[];
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+interface OneShotOptions {
+  playbackRate: number;
+  playbackVariance?: number;
+  volume: number;
 }
 
-function randomFrom<T>(items: readonly T[]): T {
-  const index = Math.floor(Math.random() * items.length);
-  return items[index] ?? items[0]!;
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function areCoordinatesEqual(
@@ -71,12 +72,15 @@ function getSecondaryChargeMix(projectile: ProjectileState): 'full' | 'mid' | 'p
 export class GameAudioEngine {
   private readonly loops: Record<LoopChannelName, LoopChannel> = {
     boost: { element: null, variants: audioAssets.spaceEngineLarge },
-    engine: { element: null, variants: audioAssets.spaceEngineLow },
+    charge: { element: null, variants: audioAssets.spaceEngineSmall },
+    engine: { element: null, variants: audioAssets.engineCircular },
     spool: { element: null, variants: audioAssets.engineCircular },
     thruster: { element: null, variants: audioAssets.thrusterFire },
   };
 
   private readonly activeOneShots = new Set<HTMLAudioElement>();
+  private readonly oneShotCursor = new Map<string, number>();
+  private readonly preloadedElements = new Map<string, HTMLAudioElement>();
 
   private unsubscribe: (() => void) | null = null;
   private running = false;
@@ -91,6 +95,7 @@ export class GameAudioEngine {
 
     this.running = true;
     this.lastState = useGameStore.getState();
+    this.preloadAllAudio();
     this.addUnlockListeners();
     this.unsubscribe = useGameStore.subscribe((state, previousState) => {
       this.lastState = state;
@@ -145,22 +150,35 @@ export class GameAudioEngine {
 
   private playStateTransitions(state: GameStore, previousState: GameStore): void {
     if (!previousState.galaxyMapOpen && state.galaxyMapOpen) {
-      this.playOneShot(audioAssets.doorOpen, audioTuning.uiVolume * 0.95, 1);
+      this.playOneShot(audioAssets.doorOpen, {
+        playbackRate: 1,
+        volume: audioTuning.uiVolume * 0.95,
+      });
     } else if (previousState.galaxyMapOpen && !state.galaxyMapOpen) {
-      this.playOneShot(audioAssets.doorClose, audioTuning.uiVolume * 0.9, 1);
+      this.playOneShot(audioAssets.doorClose, {
+        playbackRate: 1,
+        volume: audioTuning.uiVolume * 0.9,
+      });
     }
 
     if (
       state.galaxyMapOpen &&
       !areCoordinatesEqual(previousState.snapshot.travel.targetSystem, state.snapshot.travel.targetSystem)
     ) {
-      this.playOneShot(audioAssets.computerNoise, audioTuning.uiVolume * 0.8, 1.05, 0.04);
+      this.playOneShot(audioAssets.forceField, {
+        playbackRate: 1.08,
+        playbackVariance: 0.01,
+        volume: audioTuning.uiVolume * 0.55,
+      });
     }
 
     const previousTravelMode = previousState.snapshot.travel.mode;
     const travelMode = state.snapshot.travel.mode;
     if (previousTravelMode !== 'spooling' && travelMode === 'spooling') {
-      this.playOneShot(audioAssets.forceField, audioTuning.travelVolume * 0.65, 0.88);
+      this.playOneShot(audioAssets.forceField, {
+        playbackRate: 0.88,
+        volume: audioTuning.travelVolume * 0.65,
+      });
     }
 
     if (
@@ -169,8 +187,14 @@ export class GameAudioEngine {
       previousState.snapshot.travel.targetSystem !== null &&
       state.snapshot.travel.targetSystem === null
     ) {
-      this.playOneShot(audioAssets.lowFrequencyExplosion, audioTuning.travelVolume * 0.8, 0.9);
-      this.playOneShot(audioAssets.forceField, audioTuning.travelVolume * 0.5, 1.12);
+      this.playOneShot(audioAssets.lowFrequencyExplosion, {
+        playbackRate: 0.9,
+        volume: audioTuning.travelVolume * 0.8,
+      });
+      this.playOneShot(audioAssets.forceField, {
+        playbackRate: 1.12,
+        volume: audioTuning.travelVolume * 0.5,
+      });
     }
 
     for (const projectile of getNewEntries(
@@ -190,11 +214,26 @@ export class GameAudioEngine {
     for (const impact of getNewEntries(state.snapshot.impacts, previousState.snapshot.impacts)) {
       this.playImpact(impact.id);
     }
+
+    if (
+      previousState.snapshot.ship.secondaryChargeSeconds <= 0 &&
+      state.snapshot.ship.secondaryChargeSeconds > 0
+    ) {
+      this.playOneShot(audioAssets.forceField, {
+        playbackRate: 0.78,
+        playbackVariance: 0.01,
+        volume: audioTuning.chargeStartVolume,
+      });
+    }
   }
 
   private playProjectile(projectile: ProjectileState): void {
     if (projectile.owner === 'enemy') {
-      this.playOneShot(audioAssets.laserRetro, audioTuning.enemyWeaponVolume, 1.02, 0.03);
+      this.playOneShot(audioAssets.laserRetro, {
+        playbackRate: 1,
+        playbackVariance: 0.01,
+        volume: audioTuning.enemyWeaponVolume,
+      });
       return;
     }
 
@@ -203,29 +242,55 @@ export class GameAudioEngine {
       const volumeScale = chargeMix === 'full' ? 1.25 : chargeMix === 'mid' ? 1.05 : 0.9;
       const rate = chargeMix === 'full' ? 0.84 : chargeMix === 'mid' ? 0.92 : 1;
 
-      this.playOneShot(audioAssets.laserLarge, audioTuning.weaponVolume * volumeScale, rate, 0.02);
+      this.playOneShot(audioAssets.laserLarge, {
+        playbackRate: rate,
+        playbackVariance: 0.01,
+        volume: audioTuning.secondaryWeaponVolume * volumeScale,
+      });
 
       if (chargeMix === 'full') {
-        this.playOneShot(audioAssets.lowFrequencyExplosion, audioTuning.weaponVolume * 0.45, 1.04);
+        this.playOneShot(audioAssets.lowFrequencyExplosion, {
+          playbackRate: 1.02,
+          volume: audioTuning.secondaryWeaponVolume * 0.42,
+        });
       }
 
       return;
     }
 
-    this.playOneShot(audioAssets.laserSmall, audioTuning.weaponVolume, 1.08, 0.05);
+    this.playOneShot(audioAssets.laserSmall, {
+      playbackRate: 1,
+      playbackVariance: 0.005,
+      volume: audioTuning.primaryWeaponVolume,
+    });
   }
 
   private playCombatEvent(event: CombatEventState): void {
     switch (event.kind) {
       case 'death':
-        this.playOneShot(audioAssets.explosionCrunch, audioTuning.explosionVolume, 1, 0.05);
-        this.playOneShot(audioAssets.lowFrequencyExplosion, audioTuning.explosionVolume * 0.55, 0.94);
+        this.playOneShot(audioAssets.explosionCrunch, {
+          playbackRate: 1,
+          playbackVariance: 0.03,
+          volume: audioTuning.explosionVolume,
+        });
+        this.playOneShot(audioAssets.lowFrequencyExplosion, {
+          playbackRate: 0.94,
+          volume: audioTuning.explosionVolume * 0.55,
+        });
         return;
       case 'shield-break':
-        this.playOneShot(audioAssets.forceField, audioTuning.impactVolume * 1.05, 0.92, 0.03);
+        this.playOneShot(audioAssets.forceField, {
+          playbackRate: 0.92,
+          playbackVariance: 0.01,
+          volume: audioTuning.impactVolume * 1.05,
+        });
         return;
       case 'stagger':
-        this.playOneShot(audioAssets.forceField, audioTuning.impactVolume * 0.72, 1.04, 0.04);
+        this.playOneShot(audioAssets.forceField, {
+          playbackRate: 1.02,
+          playbackVariance: 0.01,
+          volume: audioTuning.impactVolume * 0.72,
+        });
         return;
       case 'telegraph':
         this.playTelegraphCue();
@@ -233,9 +298,17 @@ export class GameAudioEngine {
       case 'hit':
       default:
         if (event.targetId === 'player-ship') {
-          this.playOneShot(audioAssets.impactMetal, audioTuning.impactVolume * 1.05, 0.95, 0.04);
+          this.playOneShot(audioAssets.impactMetal, {
+            playbackRate: 0.95,
+            playbackVariance: 0.02,
+            volume: audioTuning.impactVolume * 1.05,
+          });
         } else {
-          this.playOneShot(audioAssets.impactMetal, audioTuning.impactVolume * 0.78, 1.04, 0.05);
+          this.playOneShot(audioAssets.impactMetal, {
+            playbackRate: 1.02,
+            playbackVariance: 0.02,
+            volume: audioTuning.impactVolume * 0.78,
+          });
         }
     }
   }
@@ -248,7 +321,11 @@ export class GameAudioEngine {
     }
 
     this.lastTelegraphAtMs = now;
-    this.playOneShot(audioAssets.forceField, audioTuning.telegraphVolume, 0.84, 0.02);
+    this.playOneShot(audioAssets.forceField, {
+      playbackRate: 0.84,
+      playbackVariance: 0.01,
+      volume: audioTuning.telegraphVolume,
+    });
   }
 
   private playImpact(impactId: string): void {
@@ -256,7 +333,11 @@ export class GameAudioEngine {
       return;
     }
 
-    this.playOneShot(audioAssets.impactMetal, audioTuning.impactVolume * 0.35, 1.08, 0.08);
+    this.playOneShot(audioAssets.impactMetal, {
+      playbackRate: 1.04,
+      playbackVariance: 0.02,
+      volume: audioTuning.beamImpactVolume,
+    });
   }
 
   private updateLoopMix(state: GameStore): void {
@@ -265,6 +346,11 @@ export class GameAudioEngine {
     const speedMix = clamp(speed / audioTuning.speedForMaxMix, 0, 1);
     const thrustMix = getDirectionalThrust(state.input);
     const boostActive = state.input.boost && state.snapshot.ship.resources.boostEnergy > 0;
+    const chargeMix = clamp(
+      state.snapshot.ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds,
+      0,
+      1,
+    );
     const spoolProgress = state.snapshot.travel.mode === 'spooling' ? state.snapshot.travel.progress : 0;
     const uiDuck = state.galaxyMapOpen ? audioTuning.navigationDuck : 1;
 
@@ -285,6 +371,12 @@ export class GameAudioEngine {
       runtimeActive && boostActive,
       uiDuck * clamp(audioTuning.boostLoopVolume + speedMix * 0.08, 0, 1),
       0.94 + speedMix * 0.22,
+    );
+    this.syncLoopChannel(
+      'charge',
+      runtimeActive && chargeMix > 0.02,
+      uiDuck * clamp(audioTuning.chargeLoopVolume * (0.24 + chargeMix * 0.92), 0, 1),
+      0.62 + chargeMix * 0.42,
     );
     this.syncLoopChannel(
       'spool',
@@ -314,7 +406,7 @@ export class GameAudioEngine {
 
     if (active && element.paused) {
       if (!element.src) {
-        element.src = randomFrom(channel.variants);
+        element.src = channel.variants[0] ?? '';
       }
 
       void element.play().catch(() => undefined);
@@ -331,29 +423,24 @@ export class GameAudioEngine {
     if (!active && element.volume <= 0.01) {
       element.pause();
       element.currentTime = 0;
-      element.src = randomFrom(channel.variants);
     }
   }
 
-  private playOneShot(
-    variants: readonly string[],
-    volume: number,
-    playbackRate: number,
-    playbackVariance = 0,
-  ): void {
+  private playOneShot(variants: readonly string[], options: OneShotOptions): void {
     if (!this.unlocked) {
       return;
     }
 
-    const element = new Audio(randomFrom(variants));
+    const url = this.getNextOneShotUrl(variants);
+    const element = new Audio(url);
     const finalPlaybackRate = clamp(
-      playbackRate + (Math.random() * 2 - 1) * playbackVariance,
+      options.playbackRate + (Math.random() * 2 - 1) * (options.playbackVariance ?? 0),
       0.55,
       1.7,
     );
 
     element.preload = 'auto';
-    element.volume = clamp(volume * audioTuning.masterVolume, 0, 1);
+    element.volume = clamp(options.volume * audioTuning.masterVolume, 0, 1);
     element.playbackRate = finalPlaybackRate;
 
     const cleanup = () => {
@@ -369,11 +456,34 @@ export class GameAudioEngine {
   }
 
   private createLoopElement(variants: readonly string[]): HTMLAudioElement {
-    const element = new Audio(randomFrom(variants));
+    const element = new Audio(variants[0] ?? '');
     element.loop = true;
     element.preload = 'auto';
     element.volume = 0;
     return element;
+  }
+
+  private preloadAllAudio(): void {
+    for (const variants of Object.values(audioAssets)) {
+      for (const url of variants) {
+        if (this.preloadedElements.has(url)) {
+          continue;
+        }
+
+        const element = new Audio(url);
+        element.preload = 'auto';
+        element.load();
+        this.preloadedElements.set(url, element);
+      }
+    }
+  }
+
+  private getNextOneShotUrl(variants: readonly string[]): string {
+    const key = variants.join('|');
+    const nextIndex = this.oneShotCursor.get(key) ?? 0;
+    const url = variants[nextIndex % variants.length] ?? variants[0] ?? '';
+    this.oneShotCursor.set(key, (nextIndex + 1) % variants.length);
+    return url;
   }
 
   private addUnlockListeners(): void {
