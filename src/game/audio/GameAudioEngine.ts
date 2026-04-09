@@ -71,9 +71,9 @@ function getSecondaryChargeMix(projectile: ProjectileState): 'full' | 'mid' | 'p
 
 export class GameAudioEngine {
   private readonly loops: Record<LoopChannelName, LoopChannel> = {
-    boost: { element: null, variants: audioAssets.spaceEngineLarge },
+    boost: { element: null, variants: audioAssets.spaceEngineLow },
     charge: { element: null, variants: audioAssets.spaceEngineSmall },
-    engine: { element: null, variants: audioAssets.engineCircular },
+    engine: { element: null, variants: audioAssets.spaceEngine },
     spool: { element: null, variants: audioAssets.engineCircular },
     thruster: { element: null, variants: audioAssets.thrusterFire },
   };
@@ -345,6 +345,7 @@ export class GameAudioEngine {
     const speed = getSpeed(state);
     const speedMix = clamp(speed / audioTuning.speedForMaxMix, 0, 1);
     const thrustMix = getDirectionalThrust(state.input);
+    const engineActive = runtimeActive && (thrustMix > 0.04 || speed > audioTuning.engineWakeSpeed);
     const boostActive = state.input.boost && state.snapshot.ship.resources.boostEnergy > 0;
     const chargeMix = clamp(
       state.snapshot.ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds,
@@ -356,9 +357,9 @@ export class GameAudioEngine {
 
     this.syncLoopChannel(
       'engine',
-      runtimeActive,
-      uiDuck * clamp(audioTuning.engineBaseVolume + speedMix * 0.13 + Number(state.input.thrustForward) * 0.08, 0, 1),
-      audioTuning.engineBasePlaybackRate + speedMix * audioTuning.enginePlaybackRange + (boostActive ? 0.06 : 0),
+      engineActive,
+      uiDuck * clamp(audioTuning.engineBaseVolume + speedMix * 0.15 + Number(state.input.thrustForward) * 0.1, 0, 1),
+      audioTuning.engineBasePlaybackRate + speedMix * audioTuning.enginePlaybackRange + thrustMix * 0.08 + (boostActive ? 0.06 : 0),
     );
     this.syncLoopChannel(
       'thruster',
