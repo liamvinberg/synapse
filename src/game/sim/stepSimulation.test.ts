@@ -786,7 +786,7 @@ describe('stepSimulation combat and collision', () => {
     expect(nextSnapshot.enemies[0].ai.weaponCooldownSeconds).toBeGreaterThan(0);
   });
 
-  it('moves pursuing enemies laterally instead of parking in front of the player', () => {
+  it('holds position when already inside its preferred firing range', () => {
     const snapshot = createInitialSnapshot('enemy-pressure-move-test', { includeInitialEnemies: false });
     const pursuingEnemy = createEnemy({
       position: { x: 0, y: 0, z: 110 },
@@ -803,7 +803,61 @@ describe('stepSimulation combat and collision', () => {
 
     const nextSnapshot = stepSimulation(enemySnapshot, inputState({}), 1 / 10);
 
-    expect(Math.abs(nextSnapshot.enemies[0].velocity.x)).toBeGreaterThan(0.1);
+    expect(Math.abs(nextSnapshot.enemies[0].velocity.x)).toBeLessThan(0.01);
+    expect(Math.abs(nextSnapshot.enemies[0].velocity.z)).toBeLessThan(0.01);
+  });
+
+  it('keeps enemy projectiles on their firing line instead of inheriting strafe drift', () => {
+    const snapshot = createInitialSnapshot('enemy-strafe-shot-test', { includeInitialEnemies: false });
+    const firingEnemy = createEnemy({
+      ai: {
+        phase: 'telegraph',
+        phaseSecondsRemaining: 0.01,
+        weaponCooldownSeconds: 0,
+      },
+      position: { x: 0, y: 0, z: 150 },
+      velocity: { x: 12, y: 0, z: 0 },
+    });
+    const telegraphSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [firingEnemy],
+    };
+
+    const nextSnapshot = stepSimulation(telegraphSnapshot, inputState({}), 1 / 60);
+    const hostileProjectile = nextSnapshot.projectiles.find((projectile) => projectile.owner === 'enemy');
+
+    expect(hostileProjectile).toBeDefined();
+    expect(Math.abs(hostileProjectile!.velocity.x)).toBeLessThan(0.001);
+  });
+
+  it('does not reposition during recovery after firing', () => {
+    const snapshot = createInitialSnapshot('enemy-recovery-hold-test', { includeInitialEnemies: false });
+    const recoveringEnemy = createEnemy({
+      ai: {
+        phase: 'recovery',
+        phaseSecondsRemaining: 0.3,
+        weaponCooldownSeconds: 0.5,
+      },
+      position: { x: 8, y: 0, z: 140 },
+      velocity: { x: 6, y: 0, z: 0 },
+    });
+    const enemySnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [recoveringEnemy],
+    };
+
+    const nextSnapshot = stepSimulation(enemySnapshot, inputState({}), 1 / 10);
+
+    expect(nextSnapshot.enemies[0].position).toEqual(recoveringEnemy.position);
+    expect(nextSnapshot.enemies[0].velocity).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   it('marks enemies dead and starts a death fade on lethal hits', () => {

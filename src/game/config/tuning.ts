@@ -62,6 +62,27 @@ export const motionFeedbackTuning = {
   speedForMaxFov: 56,
 } as const;
 
+export const audioTuning = {
+  boostLoopVolume: 0.28,
+  engineBasePlaybackRate: 0.84,
+  engineBaseVolume: 0.16,
+  enginePlaybackRange: 0.34,
+  explosionVolume: 0.34,
+  impactVolume: 0.24,
+  loopSmoothing: 0.18,
+  masterVolume: 0.42,
+  navigationDuck: 0.62,
+  enemyWeaponVolume: 0.18,
+  speedForMaxMix: 72,
+  spoolLoopVolume: 0.26,
+  telegraphCooldownMs: 425,
+  telegraphVolume: 0.12,
+  thrusterBaseVolume: 0.16,
+  travelVolume: 0.3,
+  uiVolume: 0.2,
+  weaponVolume: 0.22,
+} as const;
+
 export const worldScaleTuning = {
   planetCountMax: 9,
   planetCountMin: 4,

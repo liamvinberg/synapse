@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactElement } from 'react';
 import { GameHud } from '@/app/GameHud';
 import { MapOverlay } from '@/app/MapOverlay';
+import { gameAudio } from '@/game/audio/GameAudioEngine';
 import { useInputBridge } from '@/game/input/useInputBridge';
 import { gameRuntime } from '@/game/runtime/GameRuntime';
 
@@ -10,9 +11,11 @@ export function App(): ReactElement {
   useInputBridge();
 
   useEffect(() => {
+    gameAudio.start();
     gameRuntime.start();
 
     return () => {
+      gameAudio.stop();
       gameRuntime.stop();
     };
   }, []);

@@ -103,11 +103,6 @@ export function createInitialEnemies(ship: ShipState, planets: PlanetDescriptor[
     }));
 }
 
-function getOrbitDirection(enemy: EnemyState): number {
-  const numericSuffix = Number(enemy.id.split('-').at(-1) ?? '0');
-  return numericSuffix % 2 === 0 ? 1 : -1;
-}
-
 function stepEnemyResources(resources: EnemyResources, deltaSeconds: number): EnemyResources {
   const nextShieldRegenTimeoutSeconds = Math.max(
     0,
@@ -153,10 +148,7 @@ function createEnemyProjectile(enemy: EnemyState, ship: ShipState, projectileId:
     position: origin,
     radius: enemyTuning.fighterProjectileRadius,
     ttlSeconds: enemyTuning.fighterProjectileTtlSeconds,
-    velocity: addVec3(
-      scaleVec3(direction, enemyTuning.fighterProjectileSpeed),
-      enemy.velocity,
-    ),
+    velocity: scaleVec3(direction, enemyTuning.fighterProjectileSpeed),
   };
 }
 
@@ -212,12 +204,6 @@ export function stepEnemies(
         x: Math.sin(yawRadians) * Math.cos(pitchRadians),
         y: -Math.sin(pitchRadians),
         z: Math.cos(yawRadians) * Math.cos(pitchRadians),
-      });
-      const orbitDirection = getOrbitDirection(enemy);
-      const orbitRight = normalizeVec3({
-        x: toShip.z * orbitDirection,
-        y: 0,
-        z: -toShip.x * orbitDirection,
       });
       const weaponCooldownSeconds = Math.max(0, enemy.ai.weaponCooldownSeconds - deltaSeconds);
 
@@ -283,11 +269,7 @@ export function stepEnemies(
             : distanceToShip < enemyTuning.fighterPreferredRange - 12
               ? -enemyTuning.fighterReverseSpeed
               : 0;
-        const orbitWeight = distanceToShip <= enemyTuning.fighterAttackRange ? 1 : 0.55;
-        nextVelocity = addVec3(
-          scaleVec3(aimDirection, forwardSpeed),
-          scaleVec3(orbitRight, enemyTuning.fighterOrbitSpeed * orbitWeight),
-        );
+        nextVelocity = scaleVec3(aimDirection, forwardSpeed);
         nextPosition = addVec3(enemy.position, scaleVec3(nextVelocity, deltaSeconds));
 
         const aimAlignment =
@@ -304,11 +286,8 @@ export function stepEnemies(
           combatEventId += 1;
         }
       } else {
-        nextVelocity = addVec3(
-          scaleVec3(enemy.velocity, 0.9),
-          scaleVec3(orbitRight, enemyTuning.fighterOrbitSpeed * 0.45),
-        );
-        nextPosition = addVec3(enemy.position, scaleVec3(nextVelocity, deltaSeconds));
+        nextVelocity = { x: 0, y: 0, z: 0 };
+        nextPosition = enemy.position;
       }
 
       if (firedProjectile !== null) {
