@@ -1,20 +1,141 @@
 import { audioAssets } from '@/game/audio/audioAssets';
-import { audioTuning, combatTuning } from '@/game/config/tuning';
-import type { CombatEventState, ProjectileState, SectorCoordinate } from '@/game/sim/types';
+import { audioTuning, combatTuning, enemyTuning } from '@/game/config/tuning';
+import type { CombatEventState, ImpactState, ProjectileState, SectorCoordinate } from '@/game/sim/types';
 import type { GameStore } from '@/game/state/gameStore';
 import { useGameStore } from '@/game/state/gameStore';
 
-type LoopChannelName = 'boost' | 'charge' | 'engine' | 'spool' | 'thruster';
+type LayerName = 'charge';
 
-interface LoopChannel {
-  element: HTMLAudioElement | null;
-  variants: readonly string[];
+type SpatialPoint = { x: number; y: number; z: number };
+
+type AssetLoopName = 'engine' | 'spool' | 'thruster';
+
+interface ProceduralLayer {
+  gain: GainNode;
+  noiseFilter?: BiquadFilterNode;
+  noiseGain?: GainNode;
+  noiseSource?: AudioBufferSourceNode;
+  oscA: OscillatorNode;
+  oscB?: OscillatorNode;
 }
 
 interface OneShotOptions {
+  position?: SpatialPoint;
   playbackRate: number;
   playbackVariance?: number;
   volume: number;
+}
+
+class SeamlessLoopLayer {
+  private buffer: AudioBuffer | null = null;
+  private readonly output: GainNode;
+  private segmentTimer: number | null = null;
+  private activeSources: Array<{ gain: GainNode; source: AudioBufferSourceNode }> = [];
+  private isActive = false;
+  private playbackRate = 1;
+
+  constructor(
+    private readonly context: AudioContext,
+    destination: AudioNode,
+    private readonly crossfadeSeconds: number,
+  ) {
+    this.output = context.createGain();
+    this.output.gain.value = 0;
+    this.output.connect(destination);
+  }
+
+  setBuffer(buffer: AudioBuffer): void {
+    this.buffer = buffer;
+  }
+
+  setState(active: boolean, volume: number, playbackRate: number): void {
+    this.playbackRate = playbackRate;
+    this.output.gain.setTargetAtTime(volume, this.context.currentTime, 0.06);
+
+    for (const entry of this.activeSources) {
+      entry.source.playbackRate.setTargetAtTime(playbackRate, this.context.currentTime, 0.08);
+    }
+
+    if (active && !this.isActive) {
+      this.start();
+      return;
+    }
+
+    if (!active && this.isActive) {
+      this.stop();
+    }
+  }
+
+  dispose(): void {
+    this.stop();
+    this.output.disconnect();
+  }
+
+  private start(): void {
+    if (this.buffer === null) {
+      return;
+    }
+
+    this.isActive = true;
+    this.scheduleSegment(this.context.currentTime);
+  }
+
+  private stop(): void {
+    this.isActive = false;
+
+    if (this.segmentTimer !== null) {
+      window.clearTimeout(this.segmentTimer);
+      this.segmentTimer = null;
+    }
+
+    const stopAt = this.context.currentTime + 0.12;
+    for (const entry of this.activeSources) {
+      entry.gain.gain.cancelScheduledValues(this.context.currentTime);
+      entry.gain.gain.setValueAtTime(entry.gain.gain.value, this.context.currentTime);
+      entry.gain.gain.linearRampToValueAtTime(0, stopAt);
+      entry.source.stop(stopAt + 0.02);
+    }
+  }
+
+  private scheduleSegment(startTime: number): void {
+    if (!this.isActive || this.buffer === null) {
+      return;
+    }
+
+    const source = this.context.createBufferSource();
+    source.buffer = this.buffer;
+    source.playbackRate.value = this.playbackRate;
+
+    const gain = this.context.createGain();
+    const duration = this.buffer.duration / this.playbackRate;
+    const overlap = Math.min(this.crossfadeSeconds, Math.max(0.05, duration * 0.18));
+    const fadeInEnd = startTime + overlap;
+    const fadeOutStart = startTime + duration - overlap;
+    const stopAt = startTime + duration + 0.02;
+
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(1, fadeInEnd);
+    gain.gain.setValueAtTime(1, fadeOutStart);
+    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+    source.connect(gain);
+    gain.connect(this.output);
+    source.start(startTime);
+    source.stop(stopAt);
+
+    const entry = { gain, source };
+    this.activeSources.push(entry);
+    source.onended = () => {
+      this.activeSources = this.activeSources.filter((candidate) => candidate !== entry);
+      source.disconnect();
+      gain.disconnect();
+    };
+
+    const nextStartDelayMs = Math.max(0, (duration - overlap) * 1000);
+    this.segmentTimer = window.setTimeout(() => {
+      this.scheduleSegment(this.context.currentTime);
+    }, nextStartDelayMs);
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -44,11 +165,11 @@ function getDirectionalThrust(input: GameStore['input']): number {
   return clamp(
     Number(input.thrustForward) +
       Number(input.thrustBackward) +
-      (Number(input.strafeLeft) + Number(input.strafeRight)) * 0.8 +
-      (Number(input.thrustUp) + Number(input.thrustDown)) * 0.7 +
+      (Number(input.strafeLeft) + Number(input.strafeRight)) * 0.82 +
+      (Number(input.thrustUp) + Number(input.thrustDown)) * 0.72 +
       Number(input.brake) * 0.55,
     0,
-    1.8,
+    1.9,
   );
 }
 
@@ -69,18 +190,26 @@ function getSecondaryChargeMix(projectile: ProjectileState): 'full' | 'mid' | 'p
   return 'partial';
 }
 
-export class GameAudioEngine {
-  private readonly loops: Record<LoopChannelName, LoopChannel> = {
-    boost: { element: null, variants: audioAssets.spaceEngineLow },
-    charge: { element: null, variants: audioAssets.spaceEngineSmall },
-    engine: { element: null, variants: audioAssets.spaceEngine },
-    spool: { element: null, variants: audioAssets.engineCircular },
-    thruster: { element: null, variants: audioAssets.thrusterFire },
-  };
+function createNoiseBuffer(context: AudioContext): AudioBuffer {
+  const durationSeconds = 2;
+  const length = Math.floor(context.sampleRate * durationSeconds);
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const channel = buffer.getChannelData(0);
 
-  private readonly activeOneShots = new Set<HTMLAudioElement>();
+  for (let index = 0; index < length; index += 1) {
+    channel[index] = Math.random() * 2 - 1;
+  }
+
+  return buffer;
+}
+
+export class GameAudioEngine {
+  private audioContext: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private layers: Partial<Record<LayerName, ProceduralLayer>> = {};
+  private loopLayers: Partial<Record<AssetLoopName, SeamlessLoopLayer>> = {};
+  private readonly bufferPromises = new Map<string, Promise<AudioBuffer>>();
   private readonly oneShotCursor = new Map<string, number>();
-  private readonly preloadedElements = new Map<string, HTMLAudioElement>();
 
   private unsubscribe: (() => void) | null = null;
   private running = false;
@@ -95,13 +224,11 @@ export class GameAudioEngine {
 
     this.running = true;
     this.lastState = useGameStore.getState();
-    this.preloadAllAudio();
     this.addUnlockListeners();
     this.unsubscribe = useGameStore.subscribe((state, previousState) => {
       this.lastState = state;
       this.handleStateChange(state, previousState);
     });
-    this.updateLoopMix(this.lastState);
   }
 
   stop(): void {
@@ -113,51 +240,79 @@ export class GameAudioEngine {
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.removeUnlockListeners();
-
-    for (const channel of Object.values(this.loops)) {
-      if (channel.element !== null) {
-        channel.element.pause();
-        channel.element.currentTime = 0;
-        channel.element.volume = 0;
-      }
+    for (const loopLayer of Object.values(this.loopLayers)) {
+      loopLayer?.dispose();
     }
-
-    for (const element of this.activeOneShots) {
-      element.pause();
-      element.currentTime = 0;
-    }
-
-    this.activeOneShots.clear();
+    this.layers = {};
+    this.loopLayers = {};
+    this.bufferPromises.clear();
+    this.oneShotCursor.clear();
     this.lastState = null;
+    this.unlocked = false;
+
+    if (this.audioContext !== null) {
+      const context = this.audioContext;
+      this.audioContext = null;
+      this.masterGain = null;
+      void context.close();
+    }
   }
 
   private readonly unlockAudio = (): void => {
+    void this.unlockAndWarm();
+  };
+
+  private async unlockAndWarm(): Promise<void> {
+    if (this.audioContext === null) {
+      this.audioContext = new AudioContext();
+      this.masterGain = this.audioContext.createGain();
+      const compressor = this.audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 3;
+      compressor.attack.value = 0.002;
+      compressor.release.value = 0.12;
+      this.masterGain.gain.value = audioTuning.masterVolume;
+      this.masterGain.connect(compressor);
+      compressor.connect(this.audioContext.destination);
+      this.layers = this.createProceduralLayers(this.audioContext, this.masterGain);
+      this.loopLayers = this.createAssetLoopLayers(this.audioContext, this.masterGain);
+    }
+
+    await this.audioContext.resume();
     this.unlocked = true;
     this.removeUnlockListeners();
+    void this.preloadAllAudio();
 
     if (this.lastState !== null) {
-      this.updateLoopMix(this.lastState);
+      void this.preloadAllAudio();
+      this.updateMix(this.lastState);
     }
-  };
+  }
 
   private handleStateChange(state: GameStore, previousState: GameStore): void {
     if (this.unlocked) {
       this.playStateTransitions(state, previousState);
+      this.updateMix(state);
     }
-
-    this.updateLoopMix(state);
   }
 
   private playStateTransitions(state: GameStore, previousState: GameStore): void {
+    const previousBoostActive = this.isBoostAudible(previousState);
+    const boostActive = this.isBoostAudible(state);
+
     if (!previousState.galaxyMapOpen && state.galaxyMapOpen) {
-      this.playOneShot(audioAssets.doorOpen, {
-        playbackRate: 1,
-        volume: audioTuning.uiVolume * 0.95,
-      });
+      this.playOneShot(audioAssets.doorOpen, { playbackRate: 1, volume: audioTuning.uiVolume * 0.95 });
     } else if (previousState.galaxyMapOpen && !state.galaxyMapOpen) {
-      this.playOneShot(audioAssets.doorClose, {
+      this.playOneShot(audioAssets.doorClose, { playbackRate: 1, volume: audioTuning.uiVolume * 0.9 });
+    }
+
+    if (!previousBoostActive && boostActive) {
+      this.playOneShot(audioAssets.boostThruster, {
+        position: state.snapshot.ship.position,
         playbackRate: 1,
-        volume: audioTuning.uiVolume * 0.9,
+        playbackVariance: 0.01,
+        volume: audioTuning.boostOnsetVolume,
       });
     }
 
@@ -212,15 +367,17 @@ export class GameAudioEngine {
     }
 
     for (const impact of getNewEntries(state.snapshot.impacts, previousState.snapshot.impacts)) {
-      this.playImpact(impact.id);
+      this.playImpact(impact);
     }
+
+    this.playShipDamageCues(state, previousState);
 
     if (
       previousState.snapshot.ship.secondaryChargeSeconds <= 0 &&
       state.snapshot.ship.secondaryChargeSeconds > 0
     ) {
       this.playOneShot(audioAssets.forceField, {
-        playbackRate: 0.78,
+        playbackRate: 0.72,
         playbackVariance: 0.01,
         volume: audioTuning.chargeStartVolume,
       });
@@ -230,6 +387,7 @@ export class GameAudioEngine {
   private playProjectile(projectile: ProjectileState): void {
     if (projectile.owner === 'enemy') {
       this.playOneShot(audioAssets.laserRetro, {
+        position: projectile.position,
         playbackRate: 1,
         playbackVariance: 0.01,
         volume: audioTuning.enemyWeaponVolume,
@@ -239,19 +397,22 @@ export class GameAudioEngine {
 
     if (projectile.kind === 'secondary') {
       const chargeMix = getSecondaryChargeMix(projectile);
-      const volumeScale = chargeMix === 'full' ? 1.25 : chargeMix === 'mid' ? 1.05 : 0.9;
-      const rate = chargeMix === 'full' ? 0.84 : chargeMix === 'mid' ? 0.92 : 1;
+      const volumeScale = chargeMix === 'full' ? 1.25 : chargeMix === 'mid' ? 1.08 : 0.92;
+      const rate = chargeMix === 'full' ? 0.82 : chargeMix === 'mid' ? 0.9 : 0.98;
 
       this.playOneShot(audioAssets.laserLarge, {
+        position: projectile.position,
         playbackRate: rate,
-        playbackVariance: 0.01,
+        playbackVariance: 0.008,
         volume: audioTuning.secondaryWeaponVolume * volumeScale,
       });
 
-      if (chargeMix === 'full') {
-        this.playOneShot(audioAssets.lowFrequencyExplosion, {
-          playbackRate: 1.02,
-          volume: audioTuning.secondaryWeaponVolume * 0.42,
+      if (chargeMix !== 'partial') {
+        this.playOneShot(audioAssets.forceField, {
+          position: projectile.position,
+          playbackRate: chargeMix === 'full' ? 0.76 : 0.88,
+          playbackVariance: 0.01,
+          volume: audioTuning.secondaryWeaponVolume * (chargeMix === 'full' ? 0.26 : 0.16),
         });
       }
 
@@ -259,8 +420,9 @@ export class GameAudioEngine {
     }
 
     this.playOneShot(audioAssets.laserSmall, {
+      position: projectile.position,
       playbackRate: 1,
-      playbackVariance: 0.005,
+      playbackVariance: 0.004,
       volume: audioTuning.primaryWeaponVolume,
     });
   }
@@ -269,24 +431,28 @@ export class GameAudioEngine {
     switch (event.kind) {
       case 'death':
         this.playOneShot(audioAssets.explosionCrunch, {
+          position: event.position,
           playbackRate: 1,
           playbackVariance: 0.03,
           volume: audioTuning.explosionVolume,
         });
         this.playOneShot(audioAssets.lowFrequencyExplosion, {
+          position: event.position,
           playbackRate: 0.94,
           volume: audioTuning.explosionVolume * 0.55,
         });
         return;
       case 'shield-break':
         this.playOneShot(audioAssets.forceField, {
-          playbackRate: 0.92,
+          position: event.position,
+          playbackRate: 0.9,
           playbackVariance: 0.01,
           volume: audioTuning.impactVolume * 1.05,
         });
         return;
       case 'stagger':
         this.playOneShot(audioAssets.forceField, {
+          position: event.position,
           playbackRate: 1.02,
           playbackVariance: 0.01,
           volume: audioTuning.impactVolume * 0.72,
@@ -297,19 +463,7 @@ export class GameAudioEngine {
         return;
       case 'hit':
       default:
-        if (event.targetId === 'player-ship') {
-          this.playOneShot(audioAssets.impactMetal, {
-            playbackRate: 0.95,
-            playbackVariance: 0.02,
-            volume: audioTuning.impactVolume * 1.05,
-          });
-        } else {
-          this.playOneShot(audioAssets.impactMetal, {
-            playbackRate: 1.02,
-            playbackVariance: 0.02,
-            volume: audioTuning.impactVolume * 0.78,
-          });
-        }
+        return;
     }
   }
 
@@ -328,155 +482,245 @@ export class GameAudioEngine {
     });
   }
 
-  private playImpact(impactId: string): void {
-    if (!impactId.startsWith('impact-')) {
+  private playImpact(impact: ImpactState): void {
+    const isPlanetImpact = impact.anchorPlanetId !== undefined;
+    const isLarge = impact.radius >= combatTuning.secondaryProjectileImpactRadius.partial;
+    const isShieldLike =
+      impact.color === enemyTuning.fighterShieldGlowColor ||
+      impact.color === combatTuning.secondaryProjectileGlowColor;
+
+    if (isPlanetImpact) {
+      this.playOneShot(audioAssets.planetImpact, {
+        position: impact.position,
+        playbackRate: isLarge ? 0.92 : 1,
+        playbackVariance: 0.02,
+        volume: audioTuning.planetImpactVolume,
+      });
       return;
     }
 
-    this.playOneShot(audioAssets.impactMetal, {
-      playbackRate: 1.04,
+    this.playOneShot(audioAssets.hullImpact, {
+      position: impact.position,
+      playbackRate: isLarge ? 0.96 : 1.02,
       playbackVariance: 0.02,
-      volume: audioTuning.beamImpactVolume,
+      volume: audioTuning.beamImpactVolume * (isLarge ? 1.08 : 1),
     });
+
+    if (isLarge || isShieldLike) {
+      this.playOneShot(audioAssets.forceField, {
+        position: impact.position,
+        playbackRate: isLarge ? 0.86 : 1.04,
+        playbackVariance: 0.01,
+        volume: audioTuning.beamImpactVolume * 0.82,
+      });
+    }
   }
 
-  private updateLoopMix(state: GameStore): void {
+  private playShipDamageCues(state: GameStore, previousState: GameStore): void {
+    const previousShip = previousState.snapshot.ship;
+    const ship = state.snapshot.ship;
+    const shieldLoss = Math.max(0, previousShip.resources.shield - ship.resources.shield);
+    const hullLoss = Math.max(0, previousShip.resources.hull - ship.resources.hull);
+    const startedCollision =
+      previousShip.collisionCooldownSeconds <= 0 && ship.collisionCooldownSeconds > 0;
+
+    if (startedCollision) {
+      this.playOneShot(audioAssets.planetImpact, {
+        position: ship.position,
+        playbackRate: 0.82,
+        playbackVariance: 0.02,
+        volume: audioTuning.collisionVolume * 0.95,
+      });
+      this.playOneShot(audioAssets.lowFrequencyExplosion, {
+        position: ship.position,
+        playbackRate: 0.9,
+        volume: audioTuning.collisionVolume * 0.28,
+      });
+
+      if (shieldLoss > 0) {
+        this.playOneShot(audioAssets.forceField, {
+          position: ship.position,
+          playbackRate: 0.86,
+          playbackVariance: 0.01,
+          volume: audioTuning.collisionVolume * 0.42,
+        });
+      }
+
+      return;
+    }
+
+    if (shieldLoss > 0) {
+      this.playOneShot(audioAssets.forceField, {
+        position: ship.position,
+        playbackRate: 0.92,
+        playbackVariance: 0.01,
+        volume: audioTuning.playerShieldVolume,
+      });
+    }
+
+    if (hullLoss > 0) {
+      this.playOneShot(audioAssets.hullImpact, {
+        position: ship.position,
+        playbackRate: 0.88,
+        playbackVariance: 0.02,
+        volume: audioTuning.playerHullVolume,
+      });
+    }
+  }
+
+  private updateProceduralMix(state: GameStore): void {
+    const context = this.audioContext;
+    if (context === null) {
+      return;
+    }
+
+    const runtimeActive = state.isRuntimeRunning;
+    const chargeMix = runtimeActive
+      ? clamp(state.snapshot.ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds, 0, 1)
+      : 0;
+    const uiDuck = state.galaxyMapOpen ? audioTuning.navigationDuck : 1;
+    const master = audioTuning.masterVolume * uiDuck;
+
+    if (this.masterGain !== null) {
+      this.masterGain.gain.setTargetAtTime(master, context.currentTime, 0.045);
+    }
+
+    const charge = this.layers.charge;
+    if (charge !== undefined) {
+      charge.gain.gain.setTargetAtTime(chargeMix * 0.18, context.currentTime, 0.035);
+      charge.oscA.frequency.setTargetAtTime(160 + chargeMix * 520, context.currentTime, 0.035);
+      charge.oscB?.frequency.setTargetAtTime(240 + chargeMix * 860, context.currentTime, 0.035);
+      charge.noiseFilter?.frequency.setTargetAtTime(220 + chargeMix * 2400, context.currentTime, 0.035);
+      charge.noiseGain?.gain.setTargetAtTime(0.01 + chargeMix * 0.08, context.currentTime, 0.035);
+    }
+  }
+
+  private updateAssetLoopMix(state: GameStore): void {
+    const context = this.audioContext;
+    if (context === null) {
+      return;
+    }
+
     const runtimeActive = state.isRuntimeRunning;
     const speed = getSpeed(state);
     const speedMix = clamp(speed / audioTuning.speedForMaxMix, 0, 1);
     const thrustMix = getDirectionalThrust(state.input);
-    const engineActive = runtimeActive && (thrustMix > 0.04 || speed > audioTuning.engineWakeSpeed);
-    const boostActive = state.input.boost && state.snapshot.ship.resources.boostEnergy > 0;
-    const chargeMix = clamp(
-      state.snapshot.ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds,
-      0,
-      1,
-    );
-    const spoolProgress = state.snapshot.travel.mode === 'spooling' ? state.snapshot.travel.progress : 0;
-    const uiDuck = state.galaxyMapOpen ? audioTuning.navigationDuck : 1;
+    const boostMix = this.isBoostAudible(state) ? 1 : 0;
+    const engineMix = runtimeActive ? clamp(thrustMix * 0.78 + speedMix * 0.58 + boostMix * 0.24, 0, 1) : 0;
+    const spoolMix = runtimeActive && state.snapshot.travel.mode === 'spooling'
+      ? clamp(state.snapshot.travel.progress, 0, 1)
+      : 0;
+    const thrusterMix = runtimeActive ? clamp(thrustMix, 0, 1) : 0;
 
-    this.syncLoopChannel(
-      'engine',
-      engineActive,
-      uiDuck * clamp(audioTuning.engineBaseVolume + speedMix * 0.15 + Number(state.input.thrustForward) * 0.1, 0, 1),
-      audioTuning.engineBasePlaybackRate + speedMix * audioTuning.enginePlaybackRange + thrustMix * 0.08 + (boostActive ? 0.06 : 0),
+    this.loopLayers.engine?.setState(
+      engineMix > 0.03,
+      audioTuning.engineBaseVolume + engineMix * 0.17,
+      audioTuning.engineBasePlaybackRate + speedMix * audioTuning.enginePlaybackRange + thrustMix * 0.04 + boostMix * 0.05,
     );
-    this.syncLoopChannel(
-      'thruster',
-      runtimeActive && thrustMix > 0.03,
-      uiDuck * clamp(thrustMix * audioTuning.thrusterBaseVolume + (boostActive ? 0.06 : 0), 0, 1),
-      0.92 + thrustMix * 0.24 + (boostActive ? 0.08 : 0),
+    this.loopLayers.thruster?.setState(
+      thrusterMix > 0.04,
+      audioTuning.thrusterBaseVolume + thrusterMix * 0.1 + boostMix * 0.03,
+      0.92 + thrusterMix * 0.12 + boostMix * 0.04,
     );
-    this.syncLoopChannel(
-      'boost',
-      runtimeActive && boostActive,
-      uiDuck * clamp(audioTuning.boostLoopVolume + speedMix * 0.08, 0, 1),
-      0.94 + speedMix * 0.22,
-    );
-    this.syncLoopChannel(
-      'charge',
-      runtimeActive && chargeMix > 0.02,
-      uiDuck * clamp(audioTuning.chargeLoopVolume * (0.24 + chargeMix * 0.92), 0, 1),
-      0.62 + chargeMix * 0.42,
-    );
-    this.syncLoopChannel(
-      'spool',
-      runtimeActive && spoolProgress > 0,
-      uiDuck * clamp(audioTuning.spoolLoopVolume * (0.3 + spoolProgress * 0.95), 0, 1),
-      0.74 + spoolProgress * 0.64,
+    this.loopLayers.spool?.setState(
+      spoolMix > 0,
+      audioTuning.spoolLoopVolume * (0.28 + spoolMix * 0.92),
+      0.78 + spoolMix * 0.28,
     );
   }
 
-  private syncLoopChannel(
-    name: LoopChannelName,
-    active: boolean,
-    targetVolume: number,
-    targetPlaybackRate: number,
-  ): void {
-    const channel = this.loops[name];
-
-    if (!this.unlocked) {
-      if (!active && channel.element !== null) {
-        channel.element.pause();
-      }
-      return;
-    }
-
-    channel.element ??= this.createLoopElement(channel.variants);
-    const element = channel.element;
-
-    if (active && element.paused) {
-      if (!element.src) {
-        element.src = channel.variants[0] ?? '';
-      }
-
-      void element.play().catch(() => undefined);
-    }
-
-    const nextVolume = active
-      ? element.volume + (clamp(targetVolume * audioTuning.masterVolume, 0, 1) - element.volume) * audioTuning.loopSmoothing
-      : element.volume * (1 - audioTuning.loopSmoothing);
-    const nextPlaybackRate = element.playbackRate + (targetPlaybackRate - element.playbackRate) * audioTuning.loopSmoothing;
-
-    element.volume = clamp(nextVolume, 0, 1);
-    element.playbackRate = clamp(nextPlaybackRate, 0.5, 1.75);
-
-    if (!active && element.volume <= 0.01) {
-      element.pause();
-      element.currentTime = 0;
-    }
+  private updateMix(state: GameStore): void {
+    this.updateAssetLoopMix(state);
+    this.updateProceduralMix(state);
   }
 
-  private playOneShot(variants: readonly string[], options: OneShotOptions): void {
-    if (!this.unlocked) {
+  private async playOneShot(variants: readonly string[], options: OneShotOptions): Promise<void> {
+    const context = this.audioContext;
+    const masterGain = this.masterGain;
+
+    if (!this.unlocked || context === null || masterGain === null) {
       return;
     }
 
     const url = this.getNextOneShotUrl(variants);
-    const element = new Audio(url);
-    const finalPlaybackRate = clamp(
+    const buffer = await this.ensureBuffer(url);
+
+    if (this.audioContext !== context || this.masterGain !== masterGain) {
+      return;
+    }
+
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = clamp(
       options.playbackRate + (Math.random() * 2 - 1) * (options.playbackVariance ?? 0),
       0.55,
       1.7,
     );
 
-    element.preload = 'auto';
-    element.volume = clamp(options.volume * audioTuning.masterVolume, 0, 1);
-    element.playbackRate = finalPlaybackRate;
+    const gain = context.createGain();
+    gain.gain.value = clamp(
+      options.volume * this.getSpatialAttenuation(options.position),
+      0,
+      1,
+    );
 
-    const cleanup = () => {
-      element.removeEventListener('ended', cleanup);
-      element.removeEventListener('error', cleanup);
-      this.activeOneShots.delete(element);
-    };
+    source.connect(gain);
 
-    element.addEventListener('ended', cleanup);
-    element.addEventListener('error', cleanup);
-    this.activeOneShots.add(element);
-    void element.play().catch(cleanup);
+    if (options.position !== undefined) {
+      const panner = context.createStereoPanner();
+      panner.pan.value = this.getStereoPan(options.position);
+      gain.connect(panner);
+      panner.connect(masterGain);
+      source.onended = () => {
+        source.disconnect();
+        gain.disconnect();
+        panner.disconnect();
+      };
+    } else {
+      gain.connect(masterGain);
+      source.onended = () => {
+        source.disconnect();
+        gain.disconnect();
+      };
+    }
+
+    source.start();
   }
 
-  private createLoopElement(variants: readonly string[]): HTMLAudioElement {
-    const element = new Audio(variants[0] ?? '');
-    element.loop = true;
-    element.preload = 'auto';
-    element.volume = 0;
-    return element;
+  private async preloadAllAudio(): Promise<void> {
+    const urls = new Set(Object.values(audioAssets).flat());
+    await Promise.all([...urls].map((url) => this.ensureBuffer(url)));
+
+    await Promise.all([
+      this.attachLoopBuffer('engine', audioAssets.engineAmbience[0]),
+      this.attachLoopBuffer('thruster', audioAssets.thrusterFire[0]),
+      this.attachLoopBuffer('spool', audioAssets.engineCircular[0]),
+    ]);
   }
 
-  private preloadAllAudio(): void {
-    for (const variants of Object.values(audioAssets)) {
-      for (const url of variants) {
-        if (this.preloadedElements.has(url)) {
-          continue;
+  private ensureBuffer(url: string): Promise<AudioBuffer> {
+    const existing = this.bufferPromises.get(url);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const context = this.audioContext;
+    if (context === null) {
+      return Promise.reject(new Error('Audio context is not ready'));
+    }
+
+    const promise = fetch(url)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load audio asset: ${url}`);
         }
 
-        const element = new Audio(url);
-        element.preload = 'auto';
-        element.load();
-        this.preloadedElements.set(url, element);
-      }
-    }
+        const arrayBuffer = await response.arrayBuffer();
+        return context.decodeAudioData(arrayBuffer.slice(0));
+      });
+
+    this.bufferPromises.set(url, promise);
+    return promise;
   }
 
   private getNextOneShotUrl(variants: readonly string[]): string {
@@ -485,6 +729,152 @@ export class GameAudioEngine {
     const url = variants[nextIndex % variants.length] ?? variants[0] ?? '';
     this.oneShotCursor.set(key, (nextIndex + 1) % variants.length);
     return url;
+  }
+
+  private createProceduralLayers(
+    context: AudioContext,
+    destination: GainNode,
+  ): Partial<Record<LayerName, ProceduralLayer>> {
+    const noiseBuffer = createNoiseBuffer(context);
+
+    return {
+      charge: this.createLayer(context, destination, noiseBuffer, {
+        noiseFrequency: 320,
+        noiseQ: 2.2,
+        oscAFrequency: 160,
+        oscAType: 'sine',
+        oscBFrequency: 240,
+        oscBType: 'sawtooth',
+      }),
+    };
+  }
+
+  private createAssetLoopLayers(
+    context: AudioContext,
+    destination: GainNode,
+  ): Partial<Record<AssetLoopName, SeamlessLoopLayer>> {
+    return {
+      engine: new SeamlessLoopLayer(context, destination, audioTuning.loopCrossfadeSeconds),
+      spool: new SeamlessLoopLayer(context, destination, audioTuning.loopCrossfadeSeconds),
+      thruster: new SeamlessLoopLayer(context, destination, audioTuning.loopCrossfadeSeconds),
+    };
+  }
+
+  private async attachLoopBuffer(name: AssetLoopName, url: string): Promise<void> {
+    const loopLayer = this.loopLayers[name];
+    if (loopLayer === undefined) {
+      return;
+    }
+
+    const buffer = await this.ensureBuffer(url);
+    loopLayer.setBuffer(buffer);
+  }
+
+  private getSpatialAttenuation(position: SpatialPoint | undefined): number {
+    if (position === undefined || this.lastState === null) {
+      return 1;
+    }
+
+    const shipPosition = this.lastState.snapshot.ship.position;
+    const distance = Math.hypot(
+      position.x - shipPosition.x,
+      position.y - shipPosition.y,
+      position.z - shipPosition.z,
+    );
+
+    if (distance <= audioTuning.spatialMinDistance) {
+      return 1;
+    }
+
+    if (distance >= audioTuning.spatialMaxDistance) {
+      return audioTuning.spatialFloor;
+    }
+
+    const normalized = (distance - audioTuning.spatialMinDistance) /
+      (audioTuning.spatialMaxDistance - audioTuning.spatialMinDistance);
+    return Math.max(audioTuning.spatialFloor, 1 - normalized * 0.72);
+  }
+
+  private isBoostAudible(state: GameStore): boolean {
+    return (
+      state.isRuntimeRunning &&
+      state.input.boost &&
+      state.input.thrustForward &&
+      state.snapshot.ship.resources.boostEnergy > 0
+    );
+  }
+
+  private getStereoPan(position: SpatialPoint): number {
+    if (this.lastState === null) {
+      return 0;
+    }
+
+    const shipPosition = this.lastState.snapshot.ship.position;
+    const relativeX = position.x - shipPosition.x;
+    return clamp(relativeX / audioTuning.spatialPanDistance, -1, 1);
+  }
+
+  private createLayer(
+    context: AudioContext,
+    destination: GainNode,
+    noiseBuffer: AudioBuffer,
+    options: {
+      noiseFrequency: number;
+      noiseQ: number;
+      oscAFrequency: number;
+      oscAType: OscillatorType;
+      oscBFrequency?: number;
+      oscBType?: OscillatorType;
+    },
+  ): ProceduralLayer {
+    const gain = context.createGain();
+    gain.gain.value = 0;
+
+    const oscA = context.createOscillator();
+    const oscAGain = context.createGain();
+    oscA.type = options.oscAType;
+    oscA.frequency.value = options.oscAFrequency;
+    oscAGain.gain.value = 0.22;
+    oscA.connect(oscAGain);
+    oscAGain.connect(gain);
+    oscA.start();
+
+    let oscB: OscillatorNode | undefined;
+    if (options.oscBFrequency !== undefined && options.oscBType !== undefined) {
+      oscB = context.createOscillator();
+      const oscBGain = context.createGain();
+      oscB.type = options.oscBType;
+      oscB.frequency.value = options.oscBFrequency;
+      oscBGain.gain.value = 0.08;
+      oscB.connect(oscBGain);
+      oscBGain.connect(gain);
+      oscB.start();
+    }
+
+    const noiseSource = context.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
+    const noiseFilter = context.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = options.noiseFrequency;
+    noiseFilter.Q.value = options.noiseQ;
+    const noiseGain = context.createGain();
+    noiseGain.gain.value = 0;
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(gain);
+    noiseSource.start();
+
+    gain.connect(destination);
+
+    return {
+      gain,
+      noiseFilter,
+      noiseGain,
+      noiseSource,
+      oscA,
+      oscB,
+    };
   }
 
   private addUnlockListeners(): void {
