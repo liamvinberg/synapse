@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { combatTuning, flightTuning } from '@/game/config/tuning';
 import { getForwardVector } from '@/game/shared/chaseCamera';
 import { createInitialSnapshot } from '@/game/sim/createInitialSnapshot';
+import { getPlanetGravityAcceleration } from '@/game/sim/solarSystem';
 import { stepSimulation } from '@/game/sim/stepSimulation';
 import type { GameSnapshot, InputState } from '@/game/sim/types';
 
@@ -30,7 +31,7 @@ const testPlanetSurface = {
 };
 
 function createSnapshotWithPlanet(): GameSnapshot {
-  const snapshot = createInitialSnapshot('combat-test');
+  const snapshot = createInitialSnapshot('combat-test', { includeInitialEnemies: false });
 
   return {
     ...snapshot,
@@ -40,12 +41,57 @@ function createSnapshotWithPlanet(): GameSnapshot {
         {
           color: '#ffffff',
           id: 'planet-test',
+          orbitAngularSpeed: 0,
+          orbitDistance: 160,
+          orbitEccentricity: 0,
+          orbitPhaseRadians: Math.PI / 2,
+          orbitTiltRadians: 0,
           position: { x: 0, y: 0, z: 160 },
           radius: 18,
+          spinSpeed: 0.04,
           surface: testPlanetSurface,
+          velocity: { x: 0, y: 0, z: 0 },
         },
       ],
     },
+  };
+}
+
+function createEnemy(overrides: Partial<GameSnapshot['enemies'][number]> = {}): GameSnapshot['enemies'][number] {
+  return {
+    ai: {
+      phase: 'pursuit',
+      phaseSecondsRemaining: 0,
+      weaponCooldownSeconds: 0,
+      ...overrides.ai,
+    },
+    feedback: {
+      deathFadeSeconds: 0,
+      hitFlashSeconds: 0,
+      shieldFlashSeconds: 0,
+      ...overrides.feedback,
+    },
+    id: 'enemy-test',
+    kind: 'fighter',
+    pitchRadians: 0,
+    position: { x: 0, y: 0, z: 170 },
+    radius: 1.35,
+    resources: {
+      hull: 24,
+      hullMax: 24,
+      shield: 10,
+      shieldMax: 10,
+      shieldRegenDelaySeconds: 1.8,
+      shieldRegenRate: 5,
+      shieldRegenTimeoutSeconds: 0,
+      stagger: 0,
+      staggerMax: 40,
+      staggerRecoveryPerSecond: 18,
+      ...overrides.resources,
+    },
+    velocity: { x: 0, y: 0, z: 0 },
+    yawRadians: Math.PI,
+    ...overrides,
   };
 }
 
@@ -69,7 +115,7 @@ function inputState(overrides: Partial<InputState>): InputState {
 
 describe('stepSimulation combat and collision', () => {
   it('spawns a projectile when fire is pressed and weapon cooldown is ready', () => {
-    const snapshot = createInitialSnapshot('fire-test');
+    const snapshot = createInitialSnapshot('fire-test', { includeInitialEnemies: false });
 
     const nextSnapshot = stepSimulation(snapshot, inputState({ ...{
       aim: { x: 0, y: 0 },
@@ -103,6 +149,12 @@ describe('stepSimulation combat and collision', () => {
     );
   });
 
+  it('starts gameplay with a small enemy formation by default', () => {
+    const snapshot = createInitialSnapshot('enemy-default-formation');
+
+    expect(snapshot.enemies.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('removes projectiles that hit planets', () => {
     const snapshot = createSnapshotWithPlanet();
     const projectileSnapshot: GameSnapshot = {
@@ -115,6 +167,7 @@ describe('stepSimulation combat and collision', () => {
           impactRadius: combatTuning.impactRadius,
           kind: 'primary',
           length: combatTuning.projectileLength,
+          owner: 'player',
           position: { x: 0, y: 0, z: 160 },
           radius: combatTuning.projectileRadius,
           ttlSeconds: 1,
@@ -138,6 +191,43 @@ describe('stepSimulation combat and collision', () => {
 
     expect(nextSnapshot.projectiles).toHaveLength(0);
     expect(nextSnapshot.impacts).toHaveLength(1);
+  });
+
+  it('keeps a planet-hit impact attached to the planet as it moves', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const movingPlanetSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [
+          {
+            ...snapshot.activeSectorDescriptor.planets[0],
+            orbitAngularSpeed: 1,
+            position: { x: 0, y: 0, z: 160 },
+          },
+        ],
+      },
+      impacts: [
+        {
+          anchorLocalOffset: { x: 0, y: 0, z: 18 },
+          anchorPlanetId: 'planet-test',
+          color: combatTuning.impactColor,
+          id: 'impact-anchored',
+          maxTtlSeconds: 2,
+          position: { x: 0, y: 0, z: 178 },
+          radius: combatTuning.impactRadius,
+          ttlSeconds: 2,
+        },
+      ],
+    };
+
+    const nextSnapshot = stepSimulation(movingPlanetSnapshot, inputState({}), 1);
+    const movedPlanet = nextSnapshot.activeSectorDescriptor.planets[0];
+
+    expect(nextSnapshot.impacts).toHaveLength(1);
+    expect(nextSnapshot.impacts[0].position.x).toBeCloseTo(movedPlanet.position.x, 5);
+    expect(nextSnapshot.impacts[0].position.y).toBeCloseTo(movedPlanet.position.y, 5);
+    expect(nextSnapshot.impacts[0].position.z).toBeCloseTo(movedPlanet.position.z + 18, 5);
   });
 
   it('pushes the ship out of planets and applies collision damage at speed', () => {
@@ -204,10 +294,84 @@ describe('stepSimulation combat and collision', () => {
     thrustForward: false,
     thrustDown: false,
     thrustUp: false, }), 1 / 60);
+    const dampedDepartureSpeed = 8 * Math.pow(flightTuning.linearDamping, 1);
 
     expect(nextSnapshot.ship.position.z).toBeGreaterThan(departingSnapshot.ship.position.z);
-    expect(nextSnapshot.ship.velocity.z).toBeCloseTo(8 * Math.pow(flightTuning.linearDamping, 1), 4);
+    expect(nextSnapshot.ship.velocity.z).toBeGreaterThan(0);
+    expect(nextSnapshot.ship.velocity.z).toBeLessThan(dampedDepartureSpeed);
+    expect(nextSnapshot.ship.velocity.z).toBeGreaterThan(dampedDepartureSpeed - 0.2);
     expect(nextSnapshot.ship.collisionCooldownSeconds).toBe(0);
+  });
+
+  it('adds a small gravity pull when the ship is close to a planet', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const gravitySnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        position: { x: 0, y: 0, z: 190 },
+        velocity: { x: 0, y: 0, z: 0 },
+      },
+    };
+
+    const nextSnapshot = stepSimulation(gravitySnapshot, inputState({}), 1);
+
+    expect(nextSnapshot.ship.velocity.z).toBeLessThan(0);
+    expect(nextSnapshot.ship.position.z).toBeLessThan(gravitySnapshot.ship.position.z);
+    expect(nextSnapshot.ship.position.z).toBeGreaterThan(
+      snapshot.activeSectorDescriptor.planets[0].position.z + snapshot.activeSectorDescriptor.planets[0].radius,
+    );
+  });
+
+  it('does not pull the ship when it is outside the local planet gravity envelope', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const distantSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        position: { x: 0, y: 0, z: 232 },
+        velocity: { x: 0, y: 0, z: 0 },
+      },
+    };
+
+    const nextSnapshot = stepSimulation(distantSnapshot, inputState({}), 1);
+
+    expect(nextSnapshot.ship.velocity.z).toBeCloseTo(0, 6);
+    expect(nextSnapshot.ship.position.z).toBeCloseTo(distantSnapshot.ship.position.z, 6);
+  });
+
+  it('still lets the ship thrust away from a nearby planet', () => {
+    const snapshot = createSnapshotWithPlanet();
+    const escapeSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        position: { x: 0, y: 0, z: 190 },
+        velocity: { x: 0, y: 0, z: 0 },
+        yawRadians: 0,
+      },
+    };
+
+    const nextSnapshot = stepSimulation(escapeSnapshot, inputState({ thrustForward: true }), 1);
+
+    expect(nextSnapshot.ship.velocity.z).toBeGreaterThan(0);
+    expect(nextSnapshot.ship.position.z).toBeGreaterThan(escapeSnapshot.ship.position.z);
+  });
+
+  it('leads gravity toward a planet movement vector instead of only its current center', () => {
+    const gravityAcceleration = getPlanetGravityAcceleration(
+      { x: 0, y: 0, z: 190 },
+      [
+        {
+          ...createSnapshotWithPlanet().activeSectorDescriptor.planets[0],
+          position: { x: 0, y: 0, z: 160 },
+          velocity: { x: 12, y: 0, z: 0 },
+        },
+      ],
+    );
+
+    expect(gravityAcceleration.x).toBeGreaterThan(0.45);
+    expect(gravityAcceleration.z).toBeLessThan(0);
   });
 
   it('aims ship-origin projectiles toward the camera-defined aim target', () => {
@@ -255,8 +419,18 @@ describe('stepSimulation combat and collision', () => {
     expect(nextSnapshot.projectiles[0].position.z).toBeLessThan(aimedSnapshot.ship.position.z);
   });
 
-  it('does not bend projectile travel with inherited ship strafe velocity', () => {
+  it('inherits ship strafe velocity when firing without losing forward shot speed', () => {
     const snapshot = createSnapshotWithPlanet();
+    const stationarySnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        pitchRadians: 0,
+        position: { x: 0, y: 0, z: 220 },
+        velocity: { x: 0, y: 0, z: 0 },
+        yawRadians: Math.PI,
+      },
+    };
     const movingSnapshot: GameSnapshot = {
       ...snapshot,
       ship: {
@@ -267,6 +441,18 @@ describe('stepSimulation combat and collision', () => {
         yawRadians: Math.PI,
       },
     };
+    const stationaryProjectileSnapshot = stepSimulation(stationarySnapshot, inputState({ aim: { x: 0, y: 0 },
+    aimDownSights: false,
+    boost: false,
+    brake: false,
+    fire: true,
+    hyperCommit: false,
+    strafeLeft: false,
+    strafeRight: false,
+    thrustBackward: false,
+    thrustForward: false,
+    thrustDown: false,
+    thrustUp: false, }), 1 / 60);
 
     const nextSnapshot = stepSimulation(movingSnapshot, inputState({ aim: { x: 0, y: 0 },
     aimDownSights: false,
@@ -281,12 +467,21 @@ describe('stepSimulation combat and collision', () => {
     thrustDown: false,
     thrustUp: false, }), 1 / 60);
 
+    const stationaryProjectile = stationaryProjectileSnapshot.projectiles[0];
+    const movingProjectile = nextSnapshot.projectiles[0];
+
+    expect(stationaryProjectileSnapshot.projectiles).toHaveLength(1);
     expect(nextSnapshot.projectiles).toHaveLength(1);
+    expect(movingProjectile.velocity.x - stationaryProjectile.velocity.x).toBeGreaterThan(24.9);
+    expect(movingProjectile.velocity.x - stationaryProjectile.velocity.x).toBeLessThan(25.1);
+    expect(movingProjectile.velocity.z - stationaryProjectile.velocity.z).toBeGreaterThan(-0.2);
+    expect(movingProjectile.velocity.z - stationaryProjectile.velocity.z).toBeLessThan(0.2);
+    expect(movingProjectile.velocity.z).toBeLessThan(-combatTuning.projectileSpeed * 0.99);
     expect(Math.hypot(
-      nextSnapshot.projectiles[0].velocity.x,
-      nextSnapshot.projectiles[0].velocity.y,
-      nextSnapshot.projectiles[0].velocity.z,
-    )).toBeCloseTo(combatTuning.projectileSpeed, 4);
+      movingProjectile.velocity.x - stationaryProjectile.velocity.x,
+      movingProjectile.velocity.y - stationaryProjectile.velocity.y,
+      movingProjectile.velocity.z - stationaryProjectile.velocity.z,
+    )).toBeGreaterThan(24.9);
   });
 
   it('keeps the cursor as intent while letting nearby blockers win from ship origin', () => {
@@ -299,9 +494,16 @@ describe('stepSimulation combat and collision', () => {
           {
             color: '#ffffff',
             id: 'planet-near-blocker',
+            orbitAngularSpeed: 0,
+            orbitDistance: 217.5,
+            orbitEccentricity: 0,
+            orbitPhaseRadians: Math.PI / 2,
+            orbitTiltRadians: 0,
             position: { x: 0, y: 0, z: 217.5 },
             radius: 0.8,
+            spinSpeed: 0.04,
             surface: testPlanetSurface,
+            velocity: { x: 0, y: 0, z: 0 },
           },
         ],
       },
@@ -364,7 +566,7 @@ describe('stepSimulation combat and collision', () => {
   });
 
   it('charges and fires the secondary weapon while aiming down sights', () => {
-    const snapshot = createInitialSnapshot('secondary-fire-test');
+    const snapshot = createInitialSnapshot('secondary-fire-test', { includeInitialEnemies: false });
 
     const chargedSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
     aimDownSights: true,
@@ -404,7 +606,7 @@ describe('stepSimulation combat and collision', () => {
   });
 
   it('fires a weak secondary shot on a quick ADS click', () => {
-    const snapshot = createInitialSnapshot('secondary-quick-click-test');
+    const snapshot = createInitialSnapshot('secondary-quick-click-test', { includeInitialEnemies: false });
 
     const tappedSnapshot = stepSimulation(
       snapshot,
@@ -429,7 +631,7 @@ describe('stepSimulation combat and collision', () => {
   });
 
   it('cancels the secondary charge when leaving aim mode without firing a primary shot', () => {
-    const snapshot = createInitialSnapshot('secondary-cancel-test');
+    const snapshot = createInitialSnapshot('secondary-cancel-test', { includeInitialEnemies: false });
 
     const chargedSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
     aimDownSights: true,
@@ -463,7 +665,7 @@ describe('stepSimulation combat and collision', () => {
   });
 
   it('completes a hyperspace jump to the selected neighboring system', () => {
-    const snapshot = createInitialSnapshot('travel-test');
+    const snapshot = createInitialSnapshot('travel-test', { includeInitialEnemies: false });
     const targetSystem = { x: 1, y: 0, z: 0 };
     const armedSnapshot: GameSnapshot = {
       ...snapshot,
@@ -493,7 +695,7 @@ describe('stepSimulation combat and collision', () => {
   });
 
   it('moves the ship upward when vertical thrust is applied', () => {
-    const snapshot = createInitialSnapshot('vertical-thrust');
+    const snapshot = createInitialSnapshot('vertical-thrust', { includeInitialEnemies: false });
 
     const nextSnapshot = stepSimulation(snapshot, inputState({ aim: { x: 0, y: 0 },
     aimDownSights: false,
@@ -510,5 +712,165 @@ describe('stepSimulation combat and collision', () => {
 
     expect(nextSnapshot.ship.position.y).toBeGreaterThan(snapshot.ship.position.y);
     expect(nextSnapshot.ship.velocity.y).toBeGreaterThan(0);
+  });
+
+  it('updates planet positions over time using orbital motion', () => {
+    const snapshot = createInitialSnapshot('orbit-test', { includeInitialEnemies: false });
+
+    const nextSnapshot = stepSimulation(snapshot, inputState({}), 1);
+
+    const firstPlanet = snapshot.activeSectorDescriptor.planets[0];
+    const movedPlanet = nextSnapshot.activeSectorDescriptor.planets[0];
+
+    expect(movedPlanet.position.x).not.toBeCloseTo(firstPlanet.position.x, 5);
+    expect(movedPlanet.position.z).not.toBeCloseTo(firstPlanet.position.z, 5);
+  });
+
+  it('applies projectile damage to enemies and emits combat feedback', () => {
+    const snapshot = createInitialSnapshot('enemy-hit-test', { includeInitialEnemies: false });
+    const enemy = createEnemy();
+    const projectileSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [enemy],
+      projectiles: [
+        {
+          color: combatTuning.projectileColor,
+          damage: combatTuning.projectileDamage,
+          id: 'projectile-enemy-hit',
+          impactRadius: combatTuning.impactRadius,
+          kind: 'primary',
+          length: combatTuning.projectileLength,
+          owner: 'player',
+          position: { x: 0, y: 0, z: 171.4 },
+          radius: combatTuning.projectileRadius,
+          ttlSeconds: 1,
+          velocity: { x: 0, y: 0, z: -10 },
+        },
+      ],
+    };
+
+    const nextSnapshot = stepSimulation(projectileSnapshot, inputState({}), 1 / 60);
+
+    expect(nextSnapshot.enemies).toHaveLength(1);
+    expect(nextSnapshot.enemies[0].resources.shield).toBeLessThan(enemy.resources.shield);
+    expect(nextSnapshot.enemies[0].feedback.hitFlashSeconds).toBeGreaterThan(0);
+    expect(nextSnapshot.combatEvents.some((event) => event.kind === 'hit')).toBe(true);
+  });
+
+  it('lets enemies telegraph and fire hostile projectiles at the player', () => {
+    const snapshot = createInitialSnapshot('enemy-fire-test', { includeInitialEnemies: false });
+    const telegraphingEnemy = createEnemy({
+      ai: {
+        phase: 'telegraph',
+        phaseSecondsRemaining: 0.01,
+        weaponCooldownSeconds: 0,
+      },
+      position: { x: 0, y: 0, z: 150 },
+    });
+    const telegraphSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [telegraphingEnemy],
+    };
+
+    const nextSnapshot = stepSimulation(telegraphSnapshot, inputState({}), 1 / 60);
+
+    expect(nextSnapshot.projectiles.some((projectile) => projectile.owner === 'enemy')).toBe(true);
+    expect(nextSnapshot.enemies[0].ai.weaponCooldownSeconds).toBeGreaterThan(0);
+  });
+
+  it('moves pursuing enemies laterally instead of parking in front of the player', () => {
+    const snapshot = createInitialSnapshot('enemy-pressure-move-test', { includeInitialEnemies: false });
+    const pursuingEnemy = createEnemy({
+      position: { x: 0, y: 0, z: 110 },
+      velocity: { x: 0, y: 0, z: 0 },
+    });
+    const enemySnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [pursuingEnemy],
+    };
+
+    const nextSnapshot = stepSimulation(enemySnapshot, inputState({}), 1 / 10);
+
+    expect(Math.abs(nextSnapshot.enemies[0].velocity.x)).toBeGreaterThan(0.1);
+  });
+
+  it('marks enemies dead and starts a death fade on lethal hits', () => {
+    const snapshot = createInitialSnapshot('enemy-death-test', { includeInitialEnemies: false });
+    const fragileEnemy = createEnemy({
+      resources: {
+        hull: 8,
+        hullMax: 8,
+        shield: 0,
+        shieldMax: 0,
+        shieldRegenDelaySeconds: 1.8,
+        shieldRegenRate: 0,
+        shieldRegenTimeoutSeconds: 0,
+        stagger: 0,
+        staggerMax: 40,
+        staggerRecoveryPerSecond: 18,
+      },
+    });
+    const projectileSnapshot: GameSnapshot = {
+      ...snapshot,
+      activeSectorDescriptor: {
+        ...snapshot.activeSectorDescriptor,
+        planets: [],
+      },
+      enemies: [fragileEnemy],
+      projectiles: [
+        {
+          color: combatTuning.projectileColor,
+          damage: combatTuning.projectileDamage,
+          id: 'projectile-enemy-kill',
+          impactRadius: combatTuning.impactRadius,
+          kind: 'primary',
+          length: combatTuning.projectileLength,
+          owner: 'player',
+          position: { x: 0, y: 0, z: 171.4 },
+          radius: combatTuning.projectileRadius,
+          ttlSeconds: 1,
+          velocity: { x: 0, y: 0, z: -10 },
+        },
+      ],
+    };
+
+    const nextSnapshot = stepSimulation(projectileSnapshot, inputState({}), 1 / 60);
+
+    expect(nextSnapshot.enemies[0].ai.phase).toBe('dead');
+    expect(nextSnapshot.enemies[0].feedback.deathFadeSeconds).toBeGreaterThan(0);
+    expect(nextSnapshot.combatEvents.some((event) => event.kind === 'death')).toBe(true);
+  });
+
+  it('applies solar hazard damage and shake when the ship gets too close to the sun', () => {
+    const snapshot = createInitialSnapshot('solar-hazard-test', { includeInitialEnemies: false });
+    const hazardSnapshot: GameSnapshot = {
+      ...snapshot,
+      ship: {
+        ...snapshot.ship,
+        position: { x: 0, y: 0, z: 70 },
+        resources: {
+          ...snapshot.ship.resources,
+          shield: 60,
+        },
+      },
+    };
+
+    const nextSnapshot = stepSimulation(hazardSnapshot, inputState({}), 1 / 10);
+
+    expect(nextSnapshot.ship.resources.shield).toBeLessThan(hazardSnapshot.ship.resources.shield);
+    expect(nextSnapshot.ship.cameraShakeSeconds).toBeGreaterThan(0);
+    expect(nextSnapshot.ship.position.z).toBeGreaterThan(hazardSnapshot.ship.position.z);
   });
 });

@@ -1,5 +1,6 @@
 import { createNoise3D } from 'simplex-noise';
 import { worldScaleTuning } from '@/game/config/tuning';
+import { getPlanetOrbitalPosition, getPlanetOrbitalVelocity } from '@/game/sim/solarSystem';
 import type {
   PlanetBiome,
   PlanetDescriptor,
@@ -310,19 +311,32 @@ function createPlanetDescriptors(
       index * worldScaleTuning.planetOrbitSpacing +
       planetRandom() * worldScaleTuning.planetOrbitVariance;
     const orbitalAngle = planetRandom() * Math.PI * 2;
+    const orbitTiltRadians = (planetRandom() - 0.5) * 0.18;
+    const orbitAngularSpeed =
+      (0.16 + planetRandom() * 0.08) /
+      Math.max(1, Math.sqrt(orbitalDistance / worldScaleTuning.planetOrbitBaseDistance) * 28);
+    const orbitEccentricity = planetRandom() * 0.14;
     const orbitRatio = planetCount > 1 ? index / (planetCount - 1) : 0.5;
     const surface = createPlanetSurfaceStyle(sectorSeed, index, orbitRatio, planetRandom);
-
-    planets.push({
+    const planetBase: PlanetDescriptor = {
       color: surface.primaryColor,
       id: `planet-${sectorSeed.toString(36)}-${index}`,
-      position: {
-        x: Math.cos(orbitalAngle) * orbitalDistance,
-        y: (planetRandom() - 0.5) * worldScaleTuning.planetOrbitHeightRange,
-        z: Math.sin(orbitalAngle) * orbitalDistance,
-      },
+      orbitAngularSpeed,
+      orbitDistance: orbitalDistance,
+      orbitEccentricity,
+      orbitPhaseRadians: orbitalAngle,
+      orbitTiltRadians,
+      position: { x: 0, y: 0, z: 0 },
       radius,
+      spinSpeed: 0.04 + planetRandom() * 0.08,
       surface,
+      velocity: { x: 0, y: 0, z: 0 },
+    };
+
+    planets.push({
+      ...planetBase,
+      position: getPlanetOrbitalPosition(planetBase, 0),
+      velocity: getPlanetOrbitalVelocity(planetBase, 0),
     });
   }
 

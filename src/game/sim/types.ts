@@ -24,9 +24,16 @@ export interface TravelState {
 export interface PlanetDescriptor {
   color: string;
   id: string;
+  orbitAngularSpeed: number;
+  orbitDistance: number;
+  orbitEccentricity: number;
+  orbitPhaseRadians: number;
+  orbitTiltRadians: number;
   position: Vec3;
   radius: number;
+  spinSpeed: number;
   surface: PlanetSurfaceStyle;
+  velocity: Vec3;
 }
 
 export type PlanetBiome = 'rocky' | 'desert' | 'lush' | 'ice' | 'lava' | 'gas';
@@ -79,31 +86,9 @@ export interface ShipState {
   yawRadians: number;
 }
 
-export interface ProjectileState {
-  color: string;
-  damage: DamagePacket;
-  id: string;
-  impactRadius: number;
-  kind: 'primary' | 'secondary';
-  length: number;
-  position: Vec3;
-  radius: number;
-  ttlSeconds: number;
-  velocity: Vec3;
-}
+export type CombatTeam = 'player' | 'enemy';
 
-export interface ImpactState {
-  color: string;
-  id: string;
-  maxTtlSeconds: number;
-  position: Vec3;
-  radius: number;
-  ttlSeconds: number;
-}
-
-export interface ShipResources {
-  boostEnergy: number;
-  boostEnergyMax: number;
+export interface CombatResources {
   hull: number;
   hullMax: number;
   shield: number;
@@ -116,13 +101,90 @@ export interface ShipResources {
   staggerRecoveryPerSecond: number;
 }
 
+export interface ProjectileState {
+  color: string;
+  damage: DamagePacket;
+  id: string;
+  impactRadius: number;
+  kind: 'primary' | 'secondary' | 'enemy';
+  length: number;
+  owner: CombatTeam;
+  position: Vec3;
+  radius: number;
+  ttlSeconds: number;
+  velocity: Vec3;
+}
+
+export interface ImpactState {
+  anchorLocalOffset?: Vec3;
+  anchorPlanetId?: string;
+  color: string;
+  id: string;
+  maxTtlSeconds: number;
+  position: Vec3;
+  radius: number;
+  ttlSeconds: number;
+}
+
+export type CombatEventKind = 'hit' | 'shield-break' | 'stagger' | 'death' | 'telegraph';
+
+export interface CombatEventState {
+  color: string;
+  id: string;
+  kind: CombatEventKind;
+  maxTtlSeconds: number;
+  position: Vec3;
+  radius: number;
+  targetId: string;
+  ttlSeconds: number;
+}
+
+export interface ShipResources extends CombatResources {
+  boostEnergy: number;
+  boostEnergyMax: number;
+}
+
+export interface EnemyResources extends CombatResources {}
+
+export type EnemyKind = 'fighter';
+
+export type EnemyPhase = 'pursuit' | 'telegraph' | 'attack' | 'recovery' | 'staggered' | 'dead';
+
+export interface EnemyAiState {
+  phase: EnemyPhase;
+  phaseSecondsRemaining: number;
+  weaponCooldownSeconds: number;
+}
+
+export interface EnemyFeedbackState {
+  deathFadeSeconds: number;
+  hitFlashSeconds: number;
+  shieldFlashSeconds: number;
+}
+
+export interface EnemyState {
+  ai: EnemyAiState;
+  feedback: EnemyFeedbackState;
+  id: string;
+  kind: EnemyKind;
+  pitchRadians: number;
+  position: Vec3;
+  radius: number;
+  resources: EnemyResources;
+  velocity: Vec3;
+  yawRadians: number;
+}
+
 export interface GameSnapshot {
   activeSector: SectorCoordinate;
   activeSectorDescriptor: SectorDescriptor;
   activeSystem: SectorCoordinate;
   aimTarget: Vec3;
+  combatEvents: CombatEventState[];
   elapsedSeconds: number;
+  enemies: EnemyState[];
   impacts: ImpactState[];
+  nextCombatEventId: number;
   nextImpactId: number;
   nextProjectileId: number;
   projectiles: ProjectileState[];
@@ -152,9 +214,9 @@ export interface DamagePacket {
   stagger: number;
 }
 
-export interface DamageResolution {
+export interface DamageResolution<TResources extends CombatResources = CombatResources> {
   appliedHullDamage: number;
   appliedShieldDamage: number;
   destroyed: boolean;
-  nextResources: ShipResources;
+  nextResources: TResources;
 }

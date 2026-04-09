@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactElement } from 'react';
 import { getSystemLabel } from '@/game/worldgen/navigation';
 import { combatTuning } from '@/game/config/tuning';
+import { getSolarExposure } from '@/game/sim/solarSystem';
 import { useGameStore } from '@/game/state/gameStore';
 
 function formatSector(x: number, y: number, z: number): string {
@@ -58,6 +59,7 @@ export function GameHud(): ReactElement {
   const shieldPct = shipResources.shieldMax > 0 ? (shipResources.shield / shipResources.shieldMax) * 100 : 0;
   const boostPct = shipResources.boostEnergyMax > 0 ? (shipResources.boostEnergy / shipResources.boostEnergyMax) * 100 : 0;
   const targetSystem = snapshot.travel.targetSystem;
+  const solarExposure = getSolarExposure(snapshot.ship.position);
   const targetLabel = targetSystem === null ? 'No route armed' : getSystemLabel(snapshot.universeSeed, targetSystem);
   const secondaryChargePct = Math.min(
     ship.secondaryChargeSeconds / combatTuning.secondaryChargeFullSeconds,
@@ -65,6 +67,9 @@ export function GameHud(): ReactElement {
   );
   const reticleStyle = {
     '--reticle-charge': secondaryChargePct,
+  } as CSSProperties;
+  const solarExposureStyle = {
+    '--solar-exposure': solarExposure,
   } as CSSProperties;
   const reticleClassName = [
     'reticle',
@@ -78,6 +83,7 @@ export function GameHud(): ReactElement {
 
   return (
     <>
+      <div className="solar-exposure" style={solarExposureStyle} aria-hidden="true" />
       <section className="hud-root">
         <div className="hud-mode">{galaxyMapOpen ? 'Galaxy navigation' : snapshot.travel.mode === 'spooling' ? 'Hyperspace spool' : 'Normal flight'}</div>
         <div className="hud-heading">{Math.round((snapshot.ship.yawRadians * 180) / Math.PI + 360) % 360}°</div>
@@ -118,6 +124,10 @@ export function GameHud(): ReactElement {
             <span>{shipResources.boostEnergy.toFixed(0)}%</span>
           </div>
         </div>
+
+        {solarExposure > 0 ? (
+          <div className="hud-warning">Solar heat {Math.round(solarExposure * 100)}%</div>
+        ) : null}
 
         <div className="hud-bottom-right">
           <LocalSensorMap />

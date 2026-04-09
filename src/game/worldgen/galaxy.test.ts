@@ -43,6 +43,10 @@ describe('generateSectorDescriptor', () => {
       expect(planet.surface.variant).toBeLessThanOrEqual(2);
       expect(planet.surface.warpAmount).toBeGreaterThanOrEqual(0);
       expect(planet.surface.warpAmount).toBeLessThanOrEqual(1);
+      expect(planet.orbitDistance).toBeGreaterThan(0);
+      expect(planet.orbitAngularSpeed).toBeGreaterThan(0);
+      expect(planet.orbitEccentricity).toBeGreaterThanOrEqual(0);
+      expect(planet.orbitEccentricity).toBeLessThan(0.2);
     }
   });
 });

@@ -1,12 +1,16 @@
-import { useEffect, useMemo, type ReactElement } from 'react';
-import { Cloud, Clouds, Sparkles, Stars } from '@react-three/drei';
-import { BackSide, Color, MeshBasicMaterial, Quaternion, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { BackSide, CanvasTexture, Color, LinearFilter, Quaternion, ShaderMaterial, SphereGeometry, SRGBColorSpace, Vector3, type Group } from 'three';
 import { CameraRig } from '@/game/render/CameraRig';
+import { EnemyMesh } from '@/game/render/EnemyMesh';
 import { PlanetBody } from '@/game/render/PlanetBody';
 import { ShipMesh } from '@/game/render/ShipMesh';
+import { SunBody } from '@/game/render/SunBody';
+import { useInterpolatedEnemies } from '@/game/render/useInterpolatedEnemies';
 import { useInterpolatedShipState } from '@/game/render/useInterpolatedShipState';
-import { combatTuning } from '@/game/config/tuning';
+import { combatTuning, enemyTuning } from '@/game/config/tuning';
 import { useGameStore } from '@/game/state/gameStore';
+import { createSeededRandom } from '@/game/worldgen/random';
 
 const UP_AXIS = new Vector3(0, 1, 0);
 
@@ -61,6 +65,7 @@ function createSectorPalette(starColor: string, density: number): SectorPalette 
 }
 
 const backdropGeometry = new SphereGeometry(3200, 40, 20);
+const starDomeGeometry = new SphereGeometry(3180, 40, 20);
 
 const backdropVertexShader = /* glsl */ `
 varying vec3 vWorldPosition;
@@ -76,71 +81,99 @@ const backdropFragmentShader = /* glsl */ `
 uniform vec3 uBackground;
 uniform vec3 uWash;
 uniform vec3 uAccent;
-uniform float uDensity;
-uniform float uSeed;
 
 varying vec3 vWorldPosition;
 
-float hash31(vec3 p) {
-  p = fract(p * 0.1031);
-  p += dot(p, p.yzx + 33.33);
-  return fract((p.x + p.y) * p.z);
-}
-
-float noise3(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
-  vec3 u = f * f * (3.0 - 2.0 * f);
-
-  return mix(
-    mix(
-      mix(hash31(i + vec3(0.0, 0.0, 0.0)), hash31(i + vec3(1.0, 0.0, 0.0)), u.x),
-      mix(hash31(i + vec3(0.0, 1.0, 0.0)), hash31(i + vec3(1.0, 1.0, 0.0)), u.x),
-      u.y
-    ),
-    mix(
-      mix(hash31(i + vec3(0.0, 0.0, 1.0)), hash31(i + vec3(1.0, 0.0, 1.0)), u.x),
-      mix(hash31(i + vec3(0.0, 1.0, 1.0)), hash31(i + vec3(1.0, 1.0, 1.0)), u.x),
-      u.y
-    ),
-    u.z
-  );
-}
-
-float fbm(vec3 p) {
-  float value = 0.0;
-  float amplitude = 0.5;
-  float frequency = 1.0;
-
-  for (int index = 0; index < 4; index += 1) {
-    value += noise3(p * frequency) * amplitude;
-    frequency *= 2.0;
-    amplitude *= 0.55;
-  }
-
-  return value;
-}
-
 void main() {
   vec3 direction = normalize(vWorldPosition);
-  float horizon = smoothstep(-0.4, 0.95, direction.y * 0.5 + 0.5);
-  vec3 color = mix(uBackground * 0.94, uBackground * 1.08, horizon);
-
-  float washAxis = dot(direction, normalize(vec3(-0.46, 0.18, 0.86)));
-  float accentAxis = dot(direction, normalize(vec3(0.58, -0.02, 0.82)));
-  float broadWash = exp(-pow((1.0 - washAxis) * 3.2, 2.0));
-  float accentWash = exp(-pow((1.0 - accentAxis) * 4.8, 2.0));
-
-  vec3 samplePoint = direction * (2.6 + uDensity * 1.4) + vec3(uSeed * 0.000013, uSeed * 0.000011, uSeed * 0.000017);
-  float cloudNoise = fbm(samplePoint + vec3(2.0, 0.0, 0.0));
-  float accentNoise = fbm(samplePoint * 1.5 - vec3(1.4, 0.8, 0.0));
-
-  color += uWash * broadWash * smoothstep(0.32, 0.86, cloudNoise) * (0.1 + uDensity * 0.05);
-  color += uAccent * accentWash * smoothstep(0.46, 0.92, accentNoise) * 0.04;
+  float vertical = direction.y * 0.5 + 0.5;
+  vec3 color = mix(uBackground * 0.99, uWash, smoothstep(0.18, 0.92, vertical) * 0.1);
+  color = mix(color, uAccent, smoothstep(0.0, 1.0, vertical) * 0.02);
 
   gl_FragColor = vec4(color, 1.0);
 }
 `;
+
+const starPalette = {
+  bright: ['#ffffff', '#f5f7ff', '#fff5e8'] as const,
+  cool: ['#cfe0ff', '#a9c8ff', '#b8e5ff'] as const,
+  warm: ['#ffd6a6', '#ffc58f', '#ffe3bd'] as const,
+} as const;
+
+function pickStarColor(random: () => number): string {
+  const roll = random();
+
+  if (roll < 0.52) {
+    return starPalette.bright[Math.floor(random() * starPalette.bright.length)] ?? '#ffffff';
+  }
+
+  if (roll < 0.78) {
+    return starPalette.cool[Math.floor(random() * starPalette.cool.length)] ?? '#cfe0ff';
+  }
+
+  return starPalette.warm[Math.floor(random() * starPalette.warm.length)] ?? '#ffd6a6';
+}
+
+function createStarfieldTexture(seed: number): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const context = canvas.getContext('2d');
+
+  if (context === null) {
+    throw new Error('Failed to create starfield canvas context');
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  const random = createSeededRandom(seed ^ 0x51f15e3d);
+  const starCount = 2600;
+
+  for (let index = 0; index < starCount; index += 1) {
+    const u = random();
+    const v = Math.acos(1 - 2 * random()) / Math.PI;
+    const x = u * canvas.width;
+    const y = v * canvas.height;
+    const brightness = random();
+
+    let radius = 0.22 + random() * 0.36;
+    if (brightness > 0.982) {
+      radius = 1.15 + random() * 0.7;
+    } else if (brightness > 0.86) {
+      radius = 0.6 + random() * 0.5;
+    }
+
+    const color = pickStarColor(random);
+    const alpha = brightness > 0.982 ? 1 : brightness > 0.86 ? 0.88 : 0.48 + random() * 0.18;
+
+    context.beginPath();
+    context.fillStyle = color;
+    context.globalAlpha = alpha;
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+
+    if (radius > 0.95) {
+      const glow = context.createRadialGradient(x, y, 0, x, y, radius * 3.8);
+      glow.addColorStop(0, color);
+      glow.addColorStop(0.22, color);
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      context.beginPath();
+      context.fillStyle = glow;
+      context.globalAlpha = 0.16;
+      context.arc(x, y, radius * 3.8, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  context.globalAlpha = 1;
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
 
 function ProjectileTrace({
   color,
@@ -197,7 +230,9 @@ function ProjectileBodies(): ReactElement {
           key={projectile.id}
           color={projectile.color}
           glowColor={
-            projectile.kind === 'secondary'
+            projectile.kind === 'enemy'
+              ? enemyTuning.fighterProjectileGlowColor
+              : projectile.kind === 'secondary'
               ? combatTuning.secondaryProjectileGlowColor
               : combatTuning.projectileGlowColor
           }
@@ -206,6 +241,18 @@ function ProjectileBodies(): ReactElement {
           radius={projectile.radius}
           velocity={[projectile.velocity.x, projectile.velocity.y, projectile.velocity.z]}
         />
+      ))}
+    </>
+  );
+}
+
+function EnemyBodies(): ReactElement {
+  const enemies = useInterpolatedEnemies();
+
+  return (
+    <>
+      {enemies.map((enemy) => (
+        <EnemyMesh key={enemy.id} enemy={enemy} />
       ))}
     </>
   );
@@ -235,6 +282,46 @@ function ImpactBodies(): ReactElement {
   );
 }
 
+function CombatEventBodies(): ReactElement {
+  const combatEvents = useGameStore((state) => state.snapshot.combatEvents);
+
+  return (
+    <>
+      {combatEvents.map((event) => {
+        const opacity = event.ttlSeconds / event.maxTtlSeconds;
+        const scaleMultiplier =
+          event.kind === 'death'
+            ? 2.8
+            : event.kind === 'shield-break'
+              ? 1.8
+              : event.kind === 'stagger'
+                ? 2.1
+                : event.kind === 'telegraph'
+                  ? 1.4
+                  : 1.25;
+        const materialOpacity =
+          event.kind === 'death'
+            ? opacity * 0.75
+            : event.kind === 'telegraph'
+              ? opacity * 0.22
+              : opacity * 0.45;
+        const scale = 1 + (1 - opacity) * scaleMultiplier;
+
+        return (
+          <mesh
+            key={event.id}
+            position={[event.position.x, event.position.y, event.position.z]}
+            scale={[scale, scale, scale]}
+          >
+            <sphereGeometry args={[event.radius, 14, 14]} />
+            <meshBasicMaterial color={event.color} opacity={materialOpacity} transparent />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 function LocalSystem(): ReactElement {
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
   const shipState = useInterpolatedShipState();
@@ -247,27 +334,22 @@ function LocalSystem(): ReactElement {
         -shipState.position.z,
       ]}
     >
-      <pointLight color={starColor} decay={1} distance={2600} intensity={4200} />
-      <mesh>
-        <sphereGeometry args={[2.8, 48, 48]} />
-        <meshBasicMaterial color={starColor} toneMapped={false} />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[6.8, 40, 40]} />
-        <meshBasicMaterial color={starColor} opacity={0.18} toneMapped={false} transparent />
-      </mesh>
+      <SunBody starColor={starColor} />
       <PlanetBodies />
+      <EnemyBodies />
       <ProjectileBodies />
       <ImpactBodies />
+      <CombatEventBodies />
     </group>
   );
 }
 
 function SkyBackdrop(): ReactElement {
-  const density = useGameStore((state) => state.snapshot.activeSectorDescriptor.density);
   const seed = useGameStore((state) => state.snapshot.activeSectorDescriptor.seed);
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
-  const shipState = useInterpolatedShipState();
+  const camera = useThree((state) => state.camera);
+  const groupRef = useRef<Group>(null);
+  const density = useGameStore((state) => state.snapshot.activeSectorDescriptor.density);
   const palette = useMemo(() => createSectorPalette(starColor, density), [density, starColor]);
   const material = useMemo(
     () => new ShaderMaterial({
@@ -277,132 +359,50 @@ function SkyBackdrop(): ReactElement {
       uniforms: {
         uAccent: { value: new Color(palette.accent) },
         uBackground: { value: new Color(palette.background) },
-        uDensity: { value: density },
-        uSeed: { value: seed },
         uWash: { value: new Color(palette.wash) },
       },
       vertexShader: backdropVertexShader,
     }),
-    [density, palette.accent, palette.background, palette.wash, seed],
+    [palette.accent, palette.background, palette.wash],
   );
+  const starTexture = useMemo(() => createStarfieldTexture(seed), [seed]);
 
   useEffect(() => {
     return () => {
       material.dispose();
+      starTexture.dispose();
     };
-  }, [material]);
+  }, [material, starTexture]);
+
+  useFrame(() => {
+    if (groupRef.current === null) {
+      return;
+    }
+
+    groupRef.current.position.copy(camera.position);
+  });
 
   return (
-    <mesh
-      geometry={backdropGeometry}
-      material={material}
-      position={[
-        -shipState.position.x * 0.01,
-        -shipState.position.y * 0.008,
-        -shipState.position.z * 0.01,
-      ]}
-    />
+    <group ref={groupRef}>
+      <mesh geometry={backdropGeometry} material={material} />
+      <mesh geometry={starDomeGeometry}>
+        <meshBasicMaterial
+          alphaMap={starTexture}
+          color="#ffffff"
+          depthWrite={false}
+          map={starTexture}
+          side={BackSide}
+          transparent
+        />
+      </mesh>
+    </group>
   );
 }
 
-function SectorBackdrop({ starfieldSpeed }: { starfieldSpeed: number }): ReactElement {
-  const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
-  const density = useGameStore((state) => state.snapshot.activeSectorDescriptor.density);
-  const shipState = useInterpolatedShipState();
-  const palette = useMemo(() => createSectorPalette(starColor, density), [density, starColor]);
-  const densityRatio = Math.min(1, Math.max(0, density));
-  const nebulaShift: [number, number, number] = [
-    -shipState.position.x * 0.055,
-    -shipState.position.y * 0.03,
-    -shipState.position.z * 0.055,
-  ];
-  const dustShift: [number, number, number] = [
-    -shipState.position.x * 0.09,
-    -shipState.position.y * 0.05,
-    -shipState.position.z * 0.09,
-  ];
-
+function SectorBackdrop(): ReactElement {
   return (
     <>
       <SkyBackdrop />
-
-      <group position={nebulaShift}>
-        <Clouds material={MeshBasicMaterial} limit={8} range={1600}>
-          <Cloud
-            bounds={[360, 108, 78]}
-            color={palette.nebulaPrimary}
-            fade={600}
-            opacity={0.08 + densityRatio * 0.03}
-            position={[-560, 170, -1200]}
-            seed={11}
-            segments={28}
-            speed={0.03}
-            volume={7}
-          />
-          <Cloud
-            bounds={[280, 84, 68]}
-            color={palette.nebulaSecondary}
-            fade={520}
-            opacity={0.07 + densityRatio * 0.025}
-            position={[460, -70, -1080]}
-            seed={29}
-            segments={24}
-            speed={0.025}
-            volume={5}
-          />
-          <Cloud
-            bounds={[180, 56, 42]}
-            color={palette.nebulaTertiary}
-            fade={420}
-            opacity={0.05 + densityRatio * 0.02}
-            position={[90, 220, -900]}
-            seed={47}
-            segments={18}
-            speed={0.02}
-            volume={4}
-          />
-        </Clouds>
-      </group>
-
-      <group position={dustShift}>
-        <Sparkles
-          color={palette.dust}
-          count={70}
-          noise={0.9}
-          opacity={0.08 + densityRatio * 0.02}
-          scale={[1200, 520, 1200]}
-          size={10}
-          speed={0.08}
-        />
-      </group>
-
-      <Stars
-        count={4200}
-        depth={2200}
-        factor={3.1}
-        fade
-        radius={1000}
-        saturation={palette.starfieldSaturation}
-        speed={Math.max(0.04, starfieldSpeed * 0.2)}
-      />
-      <Stars
-        count={1700}
-        depth={1200}
-        factor={4.8}
-        fade
-        radius={720}
-        saturation={Math.min(1, palette.starfieldSaturation + 0.08)}
-        speed={Math.max(0.08, starfieldSpeed * 0.4)}
-      />
-      <Stars
-        count={650}
-        depth={620}
-        factor={6.4}
-        fade
-        radius={420}
-        saturation={Math.min(1, palette.starfieldSaturation + 0.16)}
-        speed={Math.max(0.14, starfieldSpeed * 0.7)}
-      />
     </>
   );
 }
@@ -410,10 +410,7 @@ function SectorBackdrop({ starfieldSpeed }: { starfieldSpeed: number }): ReactEl
 export function SpaceScene(): ReactElement {
   const starColor = useGameStore((state) => state.snapshot.activeSectorDescriptor.starColor);
   const density = useGameStore((state) => state.snapshot.activeSectorDescriptor.density);
-  const shipVelocity = useGameStore((state) => state.snapshot.ship.velocity);
-  const shipSpeed = Math.hypot(shipVelocity.x, shipVelocity.y, shipVelocity.z);
   const palette = useMemo(() => createSectorPalette(starColor, density), [density, starColor]);
-  const starfieldSpeed = 0.22 + Math.min(shipSpeed * 0.032, 0.92);
 
   return (
     <>
@@ -423,7 +420,7 @@ export function SpaceScene(): ReactElement {
       <hemisphereLight args={[palette.haze, palette.background, 0.24]} />
       <pointLight color={palette.fillLight} intensity={12} distance={1400} position={[340, 220, -520]} />
 
-      <SectorBackdrop starfieldSpeed={starfieldSpeed} />
+      <SectorBackdrop />
 
       <LocalSystem />
       <ShipMesh />

@@ -20,7 +20,7 @@ const neutralInput = {
 
 describe('stepShipController', () => {
   it('clamps pitch to the readable action-flight range', () => {
-    const ship = createInitialSnapshot('controller-test').ship;
+    const ship = createInitialSnapshot('controller-test', { includeInitialEnemies: false }).ship;
 
     const nextShip = stepShipController(
       ship,
@@ -37,7 +37,7 @@ describe('stepShipController', () => {
   });
 
   it('reduces banking when steering while pitched upward or downward', () => {
-    const ship = createInitialSnapshot('controller-bank').ship;
+    const ship = createInitialSnapshot('controller-bank', { includeInitialEnemies: false }).ship;
 
     const flatTurn = stepShipController(
       ship,
@@ -60,7 +60,7 @@ describe('stepShipController', () => {
   });
 
   it('keeps boost focused on forward thrust while damping lateral and reverse motion', () => {
-    const ship = createInitialSnapshot('controller-boost').ship;
+    const ship = createInitialSnapshot('controller-boost', { includeInitialEnemies: false }).ship;
 
     const forwardBoost = stepShipController(
       ship,
@@ -99,7 +99,7 @@ describe('stepShipController', () => {
   });
 
   it('supports vertical thrust with the same lighter boost treatment as other lateral axes', () => {
-    const ship = createInitialSnapshot('controller-vertical').ship;
+    const ship = createInitialSnapshot('controller-vertical', { includeInitialEnemies: false }).ship;
 
     const upward = stepShipController(
       ship,

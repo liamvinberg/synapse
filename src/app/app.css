@@ -61,6 +61,7 @@ button {
 .hud-route,
 .hud-left-stack,
 .hud-status,
+.hud-warning,
 .hud-bottom-right,
 .sensor-map,
 .hud-system-readout {
@@ -255,6 +256,28 @@ button {
   flex-direction: column;
   align-items: flex-end;
   gap: 3px;
+}
+
+.solar-exposure {
+  --solar-exposure: 0;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 240, 214, 0) 52%, rgba(255, 189, 96, calc(var(--solar-exposure) * 0.12)) 76%, rgba(255, 124, 52, calc(var(--solar-exposure) * 0.24)) 100%),
+    linear-gradient(180deg, rgba(255, 228, 169, calc(var(--solar-exposure) * 0.06)) 0%, rgba(255, 228, 169, 0) 24%);
+  mix-blend-mode: screen;
+}
+
+.hud-warning {
+  left: 50%;
+  bottom: 108px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 188, 122, 0.72);
+  text-shadow: 0 0 18px rgba(255, 142, 66, 0.18);
 }
 
 .reticle {

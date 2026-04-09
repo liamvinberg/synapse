@@ -1,9 +1,9 @@
-import type { DamagePacket, DamageResolution, ShipResources } from '@/game/sim/types';
+import type { CombatResources, DamagePacket, DamageResolution } from '@/game/sim/types';
 
-export function applyDamage(
-  resources: ShipResources,
+export function applyDamage<TResources extends CombatResources>(
+  resources: TResources,
   packet: DamagePacket,
-): DamageResolution {
+): DamageResolution<TResources> {
   const amplifiedShieldDamage = packet.amount * packet.shieldMultiplier;
   const appliedShieldDamage = Math.min(resources.shield, amplifiedShieldDamage);
   const remainingDamage = Math.max(0, packet.amount - appliedShieldDamage);
